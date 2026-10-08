@@ -293,13 +293,6 @@ table.ops th:nth-child(4), table.ops td:nth-child(4) { color: var(--accent-deep)
 .ans-tile.truth .k, .ans-tile.truth .p { color: var(--accent-ink); opacity: .85; }
 .ans-vs { align-self: center; font-size: 13px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--accent-deep); }
 .ans-text { font-size: 16.5px; color: var(--ink); max-width: 70ch; }
-/* share bar */
-.share { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; background: var(--surface); border-radius: 12px; padding: 10px 14px; }
-.share-k { font-size: 12.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
-.share-url { font-family: var(--mono); font-size: 13px; color: var(--accent-deep); text-decoration: none; word-break: break-all; user-select: all; }
-.share-url:hover { text-decoration: underline; }
-#copy-link { padding: 6px 12px; font-size: 13px; }
-#copy-link.done { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
 footer { font-size: 13px; color: var(--muted); border-top: 1px solid var(--rule); padding-top: 18px; display: flex; flex-wrap: wrap; gap: 8px 24px; }
 .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
 </style>
@@ -333,11 +326,6 @@ footer { font-size: 13px; color: var(--muted); border-top: 1px solid var(--rule)
       <button type="button" class="ghost" data-jump="compare" data-compare="1">Compare all explanations</button>
     </div>
     <p class="small" id="hero-hint">The page starts with every rule off, and the original design finds nothing. Run the full model to switch the three mechanisms on one by one and watch the published number appear.</p>
-    <div class="share" id="share">
-      <span class="share-k">Share this page</span>
-      <a class="share-url" id="share-url" href="https://bluetenhonig.github.io/convenience-store-simulation/">https://bluetenhonig.github.io/convenience-store-simulation/</a>
-      <button type="button" id="copy-link" aria-live="polite">Copy link</button>
-    </div>
     <p class="small">Linda Samsinger · University of St.Gallen · All variables and parameters are defined under Model.</p>
   </div>
   <div class="hero-art" aria-hidden="true">
@@ -1304,18 +1292,6 @@ var SIM = (function () {
     drawLive();
     live.raf = requestAnimationFrame(frame);
   }
-
-  /* ---------- share link ---------- */
-  var PAGE_URL = 'https://bluetenhonig.github.io/convenience-store-simulation/';
-  $('copy-link').addEventListener('click', function () {
-    var btn = $('copy-link'), done = function () { btn.textContent = 'Copied'; btn.classList.add('done'); setTimeout(function () { btn.textContent = 'Copy link'; btn.classList.remove('done'); }, 1800); };
-    var fallback = function () {
-      var r = document.createRange(); r.selectNodeContents($('share-url')); var sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(r);
-      try { if (document.execCommand('copy')) { done(); return; } } catch (e) {}
-      btn.textContent = 'Select and copy the link';
-    };
-    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(PAGE_URL).then(done, fallback); else fallback();
-  });
 
   /* ---------- wiring ---------- */
   ['reinf', 'pace', 'cost'].forEach(function (id) {
