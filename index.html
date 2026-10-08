@@ -1,0 +1,1381 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Convenience Store Simulation</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700;900&display=swap">
+<style>
+/* Layout: a sticky section nav over one reading column; the lab bench (controls) sits above live results that
+   update in place. Green is the one accent; red is reserved for a misleading verdict. */
+:root {
+  --bg: #FFFFFF; --surface: #F3F6F3; --surface-2: #E9EFEA; --ink: #16201A; --ink-2: #3F4A43; --muted: #6E7A72;
+  --rule: #D7DED9; --accent: #00802F; --accent-deep: #0A5F2D; --accent-soft: #DCEFE2; --accent-ink: #FFFFFF;
+  --series: #00802F; --series-off: #A9B3AC; --grid: #E6EBE7; --axis: #B9C2BC;
+  --bad: #C84B4B; --bad-soft: #FBECEC; --good: #00802F; --good-soft: #DCEFE2; --warn: #B07A1D; --warn-soft: #FBF1DD;
+  --shadow: 0 10px 30px rgba(10, 95, 45, .10), 0 1px 2px rgba(10, 95, 45, .08);
+  --display: 'Gill Sans Nova', 'Gill Sans MT', 'Gill Sans', Lato, 'Segoe UI', Arial, sans-serif;
+  --body: 'Gill Sans Nova', 'Gill Sans MT', 'Gill Sans', Lato, 'Segoe UI', Arial, sans-serif;
+  --mono: 'Cascadia Mono', 'Consolas', ui-monospace, monospace;
+  --r: 14px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0F1511; --surface: #171E19; --surface-2: #1F2822; --ink: #F2F5F2; --ink-2: #CBD3CD; --muted: #93A097;
+    --rule: #2B352E; --accent: #3DBB6E; --accent-deep: #6FD49A; --accent-soft: #1B3324; --accent-ink: #0F1511;
+    --series: #3DBB6E; --series-off: #5E6B63; --grid: #243029; --axis: #4A5850;
+    --bad: #F08484; --bad-soft: #3A1E1E; --good: #3DBB6E; --good-soft: #1B3324; --warn: #E1B35B; --warn-soft: #3A2E17;
+    --shadow: 0 10px 30px rgba(0, 0, 0, .35), 0 1px 2px rgba(0, 0, 0, .4);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0F1511; --surface: #171E19; --surface-2: #1F2822; --ink: #F2F5F2; --ink-2: #CBD3CD; --muted: #93A097;
+  --rule: #2B352E; --accent: #3DBB6E; --accent-deep: #6FD49A; --accent-soft: #1B3324; --accent-ink: #0F1511;
+  --series: #3DBB6E; --series-off: #5E6B63; --grid: #243029; --axis: #4A5850;
+  --bad: #F08484; --bad-soft: #3A1E1E; --good: #3DBB6E; --good-soft: #1B3324; --warn: #E1B35B; --warn-soft: #3A2E17;
+  --shadow: 0 10px 30px rgba(0, 0, 0, .35), 0 1px 2px rgba(0, 0, 0, .4);
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body { background: var(--bg); color: var(--ink); font-family: var(--body); font-size: 16px; line-height: 1.5; }
+[hidden] { display: none !important; }
+h1, h2, h3, h4, p, ul, ol, figure, dl, dd { margin: 0; }
+h1 { font-family: var(--display); font-weight: 300; font-size: clamp(34px, 5.2vw, 56px); line-height: 1.04; letter-spacing: -.01em; text-wrap: balance; }
+h2 { font-family: var(--display); font-weight: 400; font-size: clamp(24px, 3vw, 30px); line-height: 1.15; text-wrap: balance; }
+h3 { font-size: 15px; font-weight: 700; }
+.nowrap { white-space: nowrap; }
+.eyebrow { font-size: 12px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--accent); }
+.wrap { max-width: 1080px; margin: 0 auto; padding-inline: 20px; padding-block: 0 80px; display: flex; flex-direction: column; gap: 56px; }
+.note { color: var(--ink-2); max-width: 68ch; }
+.small { font-size: 13.5px; color: var(--muted); }
+a { color: var(--accent); }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition: none !important; animation: none !important; } }
+
+/* ---------- sticky nav ---------- */
+.nav { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 20; background: color-mix(in srgb, var(--bg) 88%, transparent); backdrop-filter: blur(10px); border-bottom: 1px solid var(--rule); }
+.nav-in { max-width: 1080px; margin: 0 auto; padding: 10px 20px; display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.brand { font-family: var(--display); font-weight: 700; font-size: 15px; color: var(--accent-deep); white-space: nowrap; display: flex; align-items: center; gap: 8px; }
+.brand svg { width: 22px; height: 22px; }
+.nav-links { display: flex; gap: 4px; flex-wrap: wrap; }
+.nav-links a { text-decoration: none; color: var(--ink-2); font-size: 13.5px; font-weight: 600; padding: 6px 10px; border-radius: 999px; }
+.nav-links a:hover { background: var(--surface); }
+.nav-links a.active { background: var(--accent-soft); color: var(--accent-deep); }
+.nav-status { margin-left: auto; font-size: 13px; color: var(--muted); display: flex; align-items: center; gap: 8px; min-width: 0; }
+.nav-status b { color: var(--ink); font-variant-numeric: tabular-nums; }
+.dot { width: 9px; height: 9px; border-radius: 50%; background: var(--series-off); flex: none; }
+.dot.busy { background: var(--accent); animation: pulse 1s infinite; }
+@keyframes pulse { 50% { opacity: .3; } }
+.progress { position: absolute; left: 0; right: 0; bottom: -1px; height: 2px; background: transparent; overflow: hidden; }
+.progress span { display: block; height: 100%; width: 0; background: var(--accent); transition: width .15s; }
+
+/* ---------- hero ---------- */
+.hero { padding-top: 40px; display: grid; grid-template-columns: 1.15fr .85fr; gap: 18px 36px; align-items: center; }
+.hero-eyebrow { grid-column: 1 / -1; }
+.hero-text { display: flex; flex-direction: column; gap: 18px; }
+.lede { font-size: 18.5px; color: var(--ink-2); max-width: 60ch; }
+.hero-actions { display: flex; flex-wrap: wrap; gap: 10px; }
+.hero-art { display: flex; flex-direction: column; gap: 12px; }
+.hero-art svg { width: 100%; height: auto; display: block; }
+.puzzle { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.puzzle .pt { background: var(--surface); border-radius: var(--r); padding: 14px 16px; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.puzzle .pt .k { font-size: 12.5px; color: var(--muted); }
+.puzzle .pt .v { font-family: var(--display); font-size: 36px; font-weight: 300; line-height: 1.05; font-variant-numeric: tabular-nums; }
+.puzzle .pt .v.t { color: var(--accent); }
+.puzzle .pt .p { font-size: 12.5px; color: var(--ink-2); }
+@media (max-width: 820px) { .hero { grid-template-columns: 1fr; } }
+
+/* ---------- buttons ---------- */
+button { font: inherit; font-size: 14px; font-weight: 600; color: var(--ink); background: var(--bg); border: 1px solid var(--rule); border-radius: 999px; padding: 8px 15px; cursor: pointer; transition: background .15s, border-color .15s, color .15s, transform .05s; }
+button:hover { border-color: var(--ink-2); }
+button:active { transform: translateY(1px); }
+button[aria-pressed="true"] { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+button.primary:hover { background: var(--accent-deep); border-color: var(--accent-deep); }
+button.ghost { background: transparent; }
+button:disabled { opacity: .5; cursor: default; }
+.seg { display: inline-flex; background: var(--surface); border-radius: 999px; padding: 3px; gap: 2px; flex-wrap: wrap; }
+.seg button { border: 0; background: transparent; padding: 6px 12px; font-weight: 600; color: var(--ink-2); }
+.seg button[aria-pressed="true"] { background: var(--bg); color: var(--ink); box-shadow: 0 1px 2px rgba(0,0,0,.12); }
+
+/* ---------- sections ---------- */
+section { display: flex; flex-direction: column; gap: 18px; scroll-margin-top: 70px; }
+.sec-head { display: flex; flex-direction: column; gap: 6px; }
+.panel { background: var(--surface); border-radius: calc(var(--r) + 4px); padding: 22px; display: flex; flex-direction: column; gap: 18px; min-width: 0; }
+.cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 26px; }
+.cols > div { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.steps { padding-left: 20px; display: flex; flex-direction: column; gap: 8px; max-width: 72ch; }
+.steps b { color: var(--accent-deep); }
+
+/* ---------- lab bench ---------- */
+.bench-top { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between; }
+.presets { display: flex; flex-wrap: wrap; gap: 8px; }
+.mechs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+@media (max-width: 860px) { .mechs { grid-template-columns: 1fr; } }
+.mech { background: var(--bg); border: 1px solid var(--rule); border-radius: var(--r); padding: 16px; display: flex; flex-direction: column; gap: 12px; min-width: 0; transition: border-color .2s, box-shadow .2s; }
+.mech.on { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.mech-head { display: flex; align-items: center; gap: 10px; }
+.mech-head .ic { width: 40px; height: 40px; border-radius: 50%; background: var(--surface); display: grid; place-items: center; flex: none; color: var(--accent-deep); }
+.mech-head .ic svg { width: 24px; height: 24px; }
+.mech-head .nm { display: flex; flex-direction: column; min-width: 0; }
+.mech-head .nm b { font-size: 15px; }
+.mech-head .nm span { font-size: 13px; color: var(--muted); }
+.switch { margin-left: auto; width: 46px; height: 26px; border-radius: 999px; background: var(--series-off); border: 0; padding: 0; position: relative; flex: none; }
+.switch::after { content: ''; position: absolute; top: 3px; left: 3px; width: 20px; height: 20px; border-radius: 50%; background: #fff; transition: left .15s; box-shadow: 0 1px 2px rgba(0,0,0,.25); }
+.switch[aria-checked="true"] { background: var(--accent); }
+.switch[aria-checked="true"]::after { left: 23px; }
+.mech .q { font-size: 15px; font-weight: 700; color: var(--ink); }
+.mech .dg { width: 100%; height: auto; display: block; }
+.mech .dg text { font-size: 10.5px; font-weight: 700; fill: var(--ink-2); font-family: var(--body); }
+.mech .dg .nd { fill: var(--surface); stroke: var(--rule); }
+.mech .dg .ar { stroke: var(--accent); fill: none; stroke-width: 2; }
+.mech .dg .ar-off { stroke: var(--series-off); }
+.mech .dg .hd { fill: var(--accent); }
+.mech .dg .hd-off { fill: var(--series-off); }
+.mech .ro { font-size: 13.5px; color: var(--accent-deep); font-weight: 600; min-height: 2.9em; }
+.mech.off .ro { color: var(--muted); font-weight: 400; }
+.mech .ex { font-size: 13px; color: var(--ink-2); }
+.sl { display: flex; flex-direction: column; gap: 4px; }
+.sl label { display: flex; justify-content: space-between; font-size: 12.5px; color: var(--muted); }
+.sl label output { color: var(--ink); font-variant-numeric: tabular-nums; }
+input[type=range] { width: 100%; accent-color: var(--accent); margin: 0; }
+.mech.off input[type=range] { opacity: .45; }
+.runrow { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.runrow label { font-size: 13.5px; color: var(--ink-2); display: flex; gap: 8px; align-items: center; }
+input[type=number], select { font: inherit; font-size: 14px; color: var(--ink); background: var(--bg); border: 1px solid var(--rule); border-radius: 8px; padding: 6px 8px; }
+input[type=number] { width: 90px; font-variant-numeric: tabular-nums; }
+#status { font-size: 13.5px; color: var(--muted); }
+
+/* ---------- live store ---------- */
+.live-top { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+canvas { width: 100%; height: 230px; display: block; background: var(--bg); border-radius: var(--r); border: 1px solid var(--rule); }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 20px; font-size: 13.5px; color: var(--ink-2); }
+.legend span::before { content: ''; display: inline-block; width: 12px; height: 12px; border-radius: 50%; margin-right: 7px; vertical-align: -1px; }
+.legend .lg-smile::before { background: var(--accent); }
+.legend .lg-flat::before { background: var(--series-off); }
+.legend .lg-wait::before { background: var(--accent); opacity: .45; }
+.legend .lg-balk::before { background: var(--bad); }
+.live-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
+.live-stats div { background: var(--bg); border-radius: 12px; padding: 12px 14px; display: flex; flex-direction: column; }
+.live-stats b { font-family: var(--display); font-size: 28px; font-weight: 300; font-variant-numeric: tabular-nums; }
+.live-stats span { font-size: 13px; color: var(--muted); }
+
+/* ---------- results ---------- */
+.verdict { border-radius: calc(var(--r) + 4px); padding: 20px 22px; display: grid; grid-template-columns: auto 1fr; gap: 16px; align-items: start; background: var(--surface); border-left: 6px solid var(--series-off); }
+.verdict.agree { border-left-color: var(--good); }
+.verdict.mislead { border-left-color: var(--bad); }
+.verdict.none { border-left-color: var(--series-off); }
+.verdict .vi { width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; background: var(--surface-2); color: var(--muted); }
+.verdict.agree .vi { background: var(--good-soft); color: var(--good); }
+.verdict.mislead .vi { background: var(--bad-soft); color: var(--bad); }
+.verdict .vi svg { width: 24px; height: 24px; }
+.verdict .vt { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.verdict .vt .tag { font-size: 12px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.verdict.agree .vt .tag { color: var(--good); }
+.verdict.mislead .vt .tag { color: var(--bad); }
+.verdict .vt p { font-family: var(--display); font-size: 20px; line-height: 1.35; max-width: 64ch; }
+.tiles { display: grid; grid-template-columns: 2fr 1fr; gap: 14px; }
+@media (max-width: 760px) { .tiles { grid-template-columns: 1fr; } }
+.tg { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.tg h3 { font-size: 12px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.tg .row { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+.tile { background: var(--bg); border-radius: 12px; padding: 14px; display: flex; flex-direction: column; gap: 4px; min-width: 0; border-top: 3px solid var(--rule); }
+.tile.key { border-top-color: var(--accent); }
+.tile .k { font-size: 12.5px; color: var(--ink-2); min-height: 2.6em; }
+.tile .v { font-family: var(--display); font-size: 40px; font-weight: 300; line-height: 1.05; font-variant-numeric: tabular-nums; }
+.tile .p { font-size: 12px; color: var(--muted); }
+.tile.truth { background: var(--accent-soft); border-top-color: var(--accent); }
+.tile.truth .v { color: var(--accent-deep); }
+
+/* target bars */
+.targets { display: flex; flex-direction: column; gap: 10px; }
+.tb { display: grid; grid-template-columns: minmax(150px, 1.1fr) 3fr; gap: 12px; align-items: center; font-size: 13.5px; }
+.tb .lbl { color: var(--ink-2); }
+.tb .lbl small { display: block; color: var(--muted); font-size: 12px; }
+.tb svg { width: 100%; height: 34px; display: block; overflow: visible; }
+.tb text { font-size: 11px; fill: var(--muted); font-variant-numeric: tabular-nums; font-family: var(--body); }
+.tb .bar-sim { fill: var(--series); }
+.tb .bar-off { fill: var(--series-off); }
+.tb .zero { stroke: var(--axis); stroke-width: 1; }
+.tb .pub { stroke: var(--ink); stroke-width: 2; stroke-dasharray: 4 3; }
+.tb .hit { fill: var(--good); }
+.tb .miss { fill: var(--bad); }
+.tb .cap { fill: var(--ink); font-weight: 700; }
+@media (max-width: 560px) { .tb { grid-template-columns: 1fr; gap: 4px; } }
+
+/* charts */
+.chart { position: relative; min-width: 0; }
+.chart svg { display: block; width: 100%; height: auto; }
+.chart text { font-family: var(--body); fill: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+.chart text.t { fill: var(--ink-2); font-size: 13px; }
+.chart text.l { fill: var(--ink); font-size: 12px; font-weight: 700; paint-order: stroke; stroke: var(--surface); stroke-width: 4px; stroke-linejoin: round; }
+.chart text.rl { fill: var(--ink-2); font-size: 12.5px; font-weight: 600; }
+figcaption { font-size: 13.5px; color: var(--ink-2); margin-bottom: 10px; max-width: 72ch; }
+.tip { position: absolute; pointer-events: none; background: var(--ink); color: var(--bg); font-size: 12.5px; line-height: 1.45; padding: 8px 10px; border-radius: 8px; white-space: nowrap; font-variant-numeric: tabular-nums; z-index: 5; box-shadow: var(--shadow); }
+.chart-foot { display: flex; flex-wrap: wrap; gap: 8px 20px; font-size: 13px; color: var(--muted); align-items: center; }
+.chart-foot i { display: inline-block; width: 18px; height: 0; border-top: 2px solid var(--ink); vertical-align: middle; margin-right: 6px; }
+.chart-foot i.dash { border-top-style: dashed; }
+.chart-foot i.dot { width: 10px; height: 10px; border: 0; border-radius: 50%; background: var(--series); }
+.chart-foot i.dot.off { background: var(--series-off); }
+
+/* compare */
+.cmp-head { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: space-between; }
+.cmp-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; }
+@media (max-width: 760px) { .cmp-grid { grid-template-columns: 1fr; } }
+.cmp-grid .chart svg text.rl { font-weight: 400; fill: var(--ink-2); }
+.badge { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 700; padding: 4px 10px; border-radius: 999px; background: var(--surface-2); color: var(--ink-2); }
+.badge.good { background: var(--good-soft); color: var(--good); }
+.badge.bad { background: var(--bad-soft); color: var(--bad); }
+.badge.warn { background: var(--warn-soft); color: var(--warn); }
+
+/* reruns */
+.rep-top { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+.bar { flex: 1 1 160px; height: 8px; border-radius: 999px; background: var(--surface-2); overflow: hidden; }
+.bar span { display: block; height: 100%; width: 0; background: var(--accent); transition: width .12s; }
+
+/* model */
+details { border-top: 1px solid var(--rule); }
+details:last-of-type { border-bottom: 1px solid var(--rule); }
+summary { cursor: pointer; padding: 14px 4px; font-weight: 700; font-size: 15px; list-style: none; display: flex; align-items: center; gap: 10px; }
+summary::-webkit-details-marker { display: none; }
+summary::before { content: ''; width: 8px; height: 8px; border-right: 2px solid var(--accent); border-bottom: 2px solid var(--accent); transform: rotate(-45deg); transition: transform .15s; flex: none; }
+details[open] summary::before { transform: rotate(45deg); }
+details .body { padding: 0 4px 18px; display: flex; flex-direction: column; gap: 14px; }
+.rules { padding-left: 20px; display: flex; flex-direction: column; gap: 8px; max-width: 72ch; color: var(--ink-2); }
+.rules b { color: var(--ink); }
+table { border-collapse: collapse; width: 100%; font-size: 14.5px; }
+th, td { text-align: left; padding: 9px 12px 9px 0; border-bottom: 1px solid var(--rule); vertical-align: top; }
+th { font-size: 12px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
+td.n, th.n { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; padding-right: 20px; }
+.scroll { overflow-x: auto; }
+.terms { display: grid; grid-template-columns: max-content 1fr; gap: 8px 18px; max-width: 76ch; }
+.terms dt { font-weight: 700; }
+.terms dd { color: var(--ink-2); }
+@media (max-width: 520px) { .terms { grid-template-columns: 1fr; gap: 2px 0; } .terms dd { margin-bottom: 10px; } }
+
+/* operationalisation + findings */
+table.ops td { font-size: 13.5px; }
+table.ops td:first-child { white-space: nowrap; }
+table.ops th:nth-child(4), table.ops td:nth-child(4) { color: var(--accent-deep); }
+.findings { display: grid; grid-template-columns: 1fr; gap: 14px; }
+.finding { background: var(--surface); border-radius: var(--r); padding: 18px 20px; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.finding .fq { display: flex; gap: 10px; align-items: flex-start; }
+.finding .fn { flex: none; width: 24px; height: 24px; border-radius: 50%; background: var(--accent); color: var(--accent-ink); font-size: 12.5px; font-weight: 700; display: grid; place-items: center; margin-top: 1px; }
+.finding h3 { font-family: var(--display); font-size: 17px; font-weight: 700; line-height: 1.3; }
+.finding p { color: var(--ink-2); font-size: 14.5px; }
+
+/* story bar */
+.story { list-style: none; padding: 0; margin: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+@media (max-width: 760px) { .story { grid-template-columns: 1fr 1fr; } }
+.st { display: flex; align-items: center; gap: 8px; background: var(--bg); border: 1px solid var(--rule); border-radius: 10px; padding: 8px 10px; font-size: 12.5px; color: var(--muted); min-width: 0; transition: border-color .2s, color .2s; }
+.st .sn { flex: none; width: 20px; height: 20px; border-radius: 50%; background: var(--surface-2); display: grid; place-items: center; font-weight: 700; font-size: 11px; color: var(--ink-2); }
+.st .sl { flex: 1 1 auto; min-width: 0; }
+.st .sv { flex: none; font-weight: 700; color: var(--ink); font-variant-numeric: tabular-nums; }
+.st.active { border-color: var(--accent); color: var(--ink); }
+.st.active .sn { background: var(--accent); color: var(--accent-ink); }
+.st.done { color: var(--ink-2); }
+.st.done .sn { background: var(--accent-soft); color: var(--accent-deep); }
+.st.hit .sv { color: var(--accent-deep); }
+.mech.flash { animation: flash .9s ease-out; }
+@keyframes flash { 0% { box-shadow: 0 0 0 0 var(--accent); } 100% { box-shadow: 0 0 0 10px transparent; } }
+/* answer block */
+.answer { background: var(--accent-soft); border-radius: calc(var(--r) + 4px); padding: 22px 24px; display: flex; flex-direction: column; gap: 12px; }
+.answer h3 { font-family: var(--display); font-weight: 400; font-size: clamp(20px, 2.6vw, 26px); line-height: 1.2; color: var(--ink); text-wrap: balance; }
+.ans-row { display: grid; grid-template-columns: 1fr auto 1fr; gap: 14px; align-items: stretch; }
+@media (max-width: 640px) { .ans-row { grid-template-columns: 1fr; } .ans-vs { display: none; } }
+.ans-tile { background: var(--bg); border-radius: 12px; padding: 14px 16px; display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.ans-tile .k { font-size: 12.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+.ans-tile .v { font-family: var(--display); font-size: clamp(40px, 5vw, 56px); font-weight: 300; line-height: 1.05; font-variant-numeric: tabular-nums; }
+.ans-tile .p { font-size: 12.5px; color: var(--ink-2); }
+.ans-tile.truth { background: var(--accent); color: var(--accent-ink); }
+.ans-tile.truth .k, .ans-tile.truth .p { color: var(--accent-ink); opacity: .85; }
+.ans-vs { align-self: center; font-size: 13px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--accent-deep); }
+.ans-text { font-size: 16.5px; color: var(--ink); max-width: 70ch; }
+/* share bar */
+.share { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; background: var(--surface); border-radius: 12px; padding: 10px 14px; }
+.share-k { font-size: 12.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+.share-url { font-family: var(--mono); font-size: 13px; color: var(--accent-deep); text-decoration: none; word-break: break-all; user-select: all; }
+.share-url:hover { text-decoration: underline; }
+#copy-link { padding: 6px 12px; font-size: 13px; }
+#copy-link.done { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+footer { font-size: 13px; color: var(--muted); border-top: 1px solid var(--rule); padding-top: 18px; display: flex; flex-wrap: wrap; gap: 8px 24px; }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+</style>
+</head>
+<body>
+
+<nav class="nav" aria-label="Sections">
+  <div class="nav-in">
+    <div class="brand">
+      <svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 20l4-10h28l4 10"/><path d="M9 25v15h30V25"/><path d="M19 40V30h10v10"/></svg>
+      Convenience Store Simulation
+    </div>
+    <div class="nav-links" id="navlinks">
+      <a href="#bench">Set up</a><a href="#live">Watch</a><a href="#results">Results</a><a href="#compare">Compare</a><a href="#reps">Reruns</a><a href="#findings">Findings</a><a href="#model-notes">Model</a>
+    </div>
+    <div class="nav-status"><span class="dot" id="navdot"></span><span id="navtext">Ready</span></div>
+  </div>
+  <div class="progress" aria-hidden="true"><span id="navprog"></span></div>
+</nav>
+
+<div class="wrap">
+
+<header class="hero">
+  <p class="eyebrow hero-eyebrow"><span class="nowrap">Crafting and Evaluating Research Designs</span> · <span class="nowrap">Alternative research design</span></p>
+  <div class="hero-text">
+    <h1>What if the smile was never the problem?</h1>
+    <p class="lede">The “Emotions and Firm Performance” study found that stores whose clerks smiled more sold slightly less. This page rebuilds those 576 stores on a computer, lets you switch everyday behaviours on and off, and shows what the original research design would have concluded next to what is actually true in the model.</p>
+    <div class="hero-actions">
+      <button type="button" class="primary" data-jump="bench" data-story="1">Run the full model</button>
+      <button type="button" data-jump="bench" data-preset="0,0,0">Reset: every rule off</button>
+      <button type="button" class="ghost" data-jump="compare" data-compare="1">Compare all explanations</button>
+    </div>
+    <p class="small" id="hero-hint">The page starts with every rule off, and the original design finds nothing. Run the full model to switch the three mechanisms on one by one and watch the published number appear.</p>
+    <div class="share" id="share">
+      <span class="share-k">Share this page</span>
+      <a class="share-url" id="share-url" href="https://bluetenhonig.github.io/convenience-store-simulation/">https://bluetenhonig.github.io/convenience-store-simulation/</a>
+      <button type="button" id="copy-link" aria-live="polite">Copy link</button>
+    </div>
+    <p class="small">Linda Samsinger · University of St.Gallen · All variables and parameters are defined under Model.</p>
+  </div>
+  <div class="hero-art" aria-hidden="true">
+    <svg viewBox="0 0 520 250" role="img" aria-label="A clerk at a counter with a queue of customers">
+      <defs>
+        <linearGradient id="hg" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="var(--accent-soft)"/><stop offset="1" stop-color="var(--surface)"/></linearGradient>
+      </defs>
+      <rect x="0" y="0" width="520" height="250" rx="18" fill="url(#hg)"/>
+      <g stroke="var(--axis)" stroke-width="2" fill="none" opacity=".6">
+        <path d="M40 60h130M40 92h130M40 124h130"/><path d="M50 60v-10M100 60v-12M150 60v-8M60 92v-10M120 92v-14M70 124v-9M140 124v-11"/>
+      </g>
+      <rect x="40" y="150" width="190" height="60" rx="8" fill="var(--bg)" stroke="var(--rule)"/>
+      <rect x="40" y="150" width="190" height="8" rx="4" fill="var(--accent)"/>
+      <circle cx="110" cy="120" r="26" fill="var(--accent)"/>
+      <circle cx="100" cy="114" r="3" fill="var(--accent-ink)"/><circle cx="120" cy="114" r="3" fill="var(--accent-ink)"/>
+      <path d="M97 128c4 6 9 9 13 9s9-3 13-9" stroke="var(--accent-ink)" stroke-width="3" fill="none" stroke-linecap="round"/>
+      <rect x="92" y="146" width="36" height="6" rx="3" fill="var(--accent-deep)"/>
+      <g>
+        <circle cx="275" cy="150" r="20" fill="var(--series)"/><rect x="262" y="172" width="26" height="36" rx="8" fill="var(--series)"/>
+        <circle cx="335" cy="150" r="20" fill="var(--series)" opacity=".55"/><rect x="322" y="172" width="26" height="36" rx="8" fill="var(--series)" opacity=".55"/>
+        <circle cx="395" cy="150" r="20" fill="var(--series)" opacity=".35"/><rect x="382" y="172" width="26" height="36" rx="8" fill="var(--series)" opacity=".35"/>
+        <circle cx="455" cy="150" r="20" fill="var(--series)" opacity=".18"/><rect x="442" y="172" width="26" height="36" rx="8" fill="var(--series)" opacity=".18"/>
+      </g>
+      <g stroke="var(--ink)" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M300 95l40-26 40 14 40-30 50 12"/>
+      </g>
+      <g fill="var(--ink)"><circle cx="300" cy="95" r="4"/><circle cx="340" cy="69" r="4"/><circle cx="380" cy="83" r="4"/><circle cx="420" cy="53" r="4"/><circle cx="470" cy="65" r="4"/></g>
+      <text x="300" y="40" font-size="12" font-weight="700" fill="var(--ink-2)" font-family="Lato, Arial, sans-serif">Sales</text>
+      <text x="262" y="232" font-size="12" font-weight="700" fill="var(--ink-2)" font-family="Lato, Arial, sans-serif">Customers arrive, queue, buy or leave</text>
+    </svg>
+    <div class="puzzle">
+      <div class="pt"><span class="k">Published effect of smiling on sales</span><span class="v">−.10</span><span class="p">Regression coefficient, 576 stores, line length controlled</span></div>
+      <div class="pt"><span class="k">True effect in the model right now</span><span class="v t" id="hero-truth">…</span><span class="p" id="hero-truth-p">Same stores rerun 20 points friendlier</span></div>
+    </div>
+  </div>
+</header>
+
+<section aria-labelledby="h-how">
+  <div class="sec-head"><p class="eyebrow">How this page works</p><h2 id="h-how">Switch mechanisms on, measure like the original study, then compare with the truth</h2></div>
+  <div class="cols">
+    <div>
+      <h3>The puzzle</h3>
+      <p class="note">The published regression gives displayed friendliness a coefficient of −.10 on sales. Either friendliness really lowers sales, or something else creates the pattern, for example busy stores selling more while their hurried clerks stop smiling. A field survey cannot tell these apart. A simulation can, because the researcher writes the rules and therefore knows the truth.</p>
+    </div>
+    <div>
+      <h3>Four steps, repeated every time you change a setting</h3>
+      <ol class="steps">
+        <li><b>Build the stores.</b> 576 artificial stores, each with its own customer traffic and its own friendliness norm. The two are unrelated by construction.</li>
+        <li><b>Switch on mechanisms.</b> The three cards below decide how customers and clerks behave.</li>
+        <li><b>Measure like the original study.</b> Virtual mystery shoppers visit every store, and the original regression runs on their notes.</li>
+        <li><b>Compare with the truth.</b> The model reruns the same stores with friendlier clerks and reports the true effect on sales.</li>
+      </ol>
+    </div>
+  </div>
+</section>
+
+<section id="bench" aria-labelledby="h-bench">
+  <div class="sec-head"><p class="eyebrow">1 · Set up</p><h2 id="h-bench">Choose which mechanisms are at work</h2>
+    <p class="note">Each card is one candidate explanation. Switch it on or off, then set how strong it is. Results update as soon as you release a control.</p></div>
+  <div class="panel">
+    <div class="bench-top">
+      <div class="presets" role="group" aria-label="Presets">
+        <button type="button" data-preset="0,0,0" title="All mechanisms off. Sanity check: no pattern should appear.">None</button>
+        <button type="button" data-preset="0.10,0,0" title="Only the original study's hypothesis.">Reinforcement only</button>
+        <button type="button" data-preset="0,0.25,0" title="Only the rival explanation: busy clerks stop smiling.">Store pace only</button>
+        <button type="button" data-preset="0,0,24" title="Only the cost explanation: smiling slows the line.">Service time only</button>
+        <button type="button" data-preset="0.10,0.25,24" title="All three mechanisms at their default strengths.">All three</button>
+      </div>
+      <div class="runrow">
+        <button type="button" class="primary" id="story-run" data-story="1" title="Switch the mechanisms on one by one and run after each.">Run the full model</button>
+        <label for="seed" title="The seed fixes the random numbers, so the same seed always gives the same run.">Seed <input type="number" id="seed" min="1" max="99999" step="1" value="2026"></label>
+        <button type="button" id="reseed" title="Rerun the same settings with different chance events.">New seed</button>
+        <button type="button" id="run">Run once</button>
+      </div>
+    </div>
+    <div class="mechs">
+      <div class="mech" id="m-reinf">
+        <div class="mech-head">
+          <div class="ic"><svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M38 24a14 14 0 1 1-4.1-9.9"/><path d="M38 8v8h-8"/><path d="M19 27c1.5 2 3 3 5 3s3.5-1 5-3"/></svg></div>
+          <div class="nm"><b>Reinforcement</b><span>The original study’s hypothesis</span></div>
+          <button type="button" class="switch" id="sw-reinf" role="switch" aria-checked="true" aria-label="Reinforcement on or off"></button>
+        </div>
+        <p class="q">Do friendly clerks bring customers back?</p>
+        <svg class="dg" viewBox="0 0 300 70" aria-hidden="true">
+          <rect class="nd" x="6" y="22" width="82" height="28" rx="14"/><text x="47" y="40" text-anchor="middle">Friendly visit</text>
+          <path class="ar" d="M92 36h22"/><path class="hd" d="M114 30l10 6-10 6z"/>
+          <rect class="nd" x="128" y="22" width="62" height="28" rx="14"/><text x="159" y="40" text-anchor="middle">Returns</text>
+          <path class="ar" d="M194 36h22"/><path class="hd" d="M216 30l10 6-10 6z"/>
+          <rect class="nd" x="232" y="22" width="62" height="28" rx="14"/><text x="263" y="40" text-anchor="middle">Sales +</text>
+        </svg>
+        <p class="ro" id="o-reinf"></p>
+        <div class="sl"><label for="reinf"><span>Strength</span><output id="v-reinf" for="reinf"></output></label><input type="range" id="reinf" min="0" max="0.30" step="0.01" value="0"></div>
+        <p class="ex">A customer who was greeted, smiled at and thanked is more likely to come back. If this holds, friendliness should raise sales.</p>
+      </div>
+      <div class="mech" id="m-pace">
+        <div class="mech-head">
+          <div class="ic"><svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="13" cy="17" r="4"/><path d="M5 34c0-5 3.5-8 8-8s8 3 8 8"/><circle cx="27" cy="17" r="4"/><path d="M19 34c0-5 3.5-8 8-8s8 3 8 8"/><circle cx="40" cy="17" r="4"/><path d="M33 34c0-5 3.5-8 7-8"/><path d="M40 26c2.5 0 4 1.5 4.5 4"/></svg></div>
+          <div class="nm"><b>Store pace</b><span>The rival explanation</span></div>
+          <button type="button" class="switch" id="sw-pace" role="switch" aria-checked="true" aria-label="Store pace on or off"></button>
+        </div>
+        <p class="q">Do busy clerks stop smiling?</p>
+        <svg class="dg" viewBox="0 0 300 70" aria-hidden="true">
+          <rect class="nd" x="6" y="22" width="70" height="28" rx="14"/><text x="41" y="40" text-anchor="middle">Busy store</text>
+          <path class="ar" d="M80 30c30-18 60-18 90-12"/><path class="hd" d="M166 14l12 2-8 9z"/>
+          <path class="ar" d="M80 42c30 18 60 18 90 12"/><path class="hd" d="M166 58l12-2-8-9z"/>
+          <rect class="nd" x="186" y="2" width="70" height="26" rx="13"/><text x="221" y="19" text-anchor="middle">Sales +</text>
+          <rect class="nd" x="186" y="44" width="70" height="26" rx="13"/><text x="221" y="61" text-anchor="middle">Smile −</text>
+        </svg>
+        <p class="ro" id="o-pace"></p>
+        <div class="sl"><label for="pace"><span>Strength</span><output id="v-pace" for="pace"></output></label><input type="range" id="pace" min="0" max="1" step="0.05" value="0"></div>
+        <p class="ex">Clerks drop the smile when people are waiting. Busy stores sell more because more people come in, so friendliness and sales can look negatively related without friendliness doing anything.</p>
+      </div>
+      <div class="mech" id="m-cost">
+        <div class="mech-head">
+          <div class="ic"><svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="24" cy="27" r="14"/><path d="M24 19v8l5 3"/><path d="M19 8h10"/><path d="M24 8v5"/><path d="M36 13l3-3"/></svg></div>
+          <div class="nm"><b>Service time</b><span>The cost explanation</span></div>
+          <button type="button" class="switch" id="sw-cost" role="switch" aria-checked="true" aria-label="Service time on or off"></button>
+        </div>
+        <p class="q">Does smiling slow the line?</p>
+        <svg class="dg" viewBox="0 0 300 70" aria-hidden="true">
+          <rect class="nd" x="6" y="22" width="56" height="28" rx="14"/><text x="34" y="40" text-anchor="middle">Smile</text>
+          <path class="ar" d="M66 36h30"/><path class="hd" d="M96 30l10 6-10 6z"/>
+          <rect class="nd" x="110" y="22" width="76" height="28" rx="14"/><text x="148" y="40" text-anchor="middle">Longer line</text>
+          <path class="ar" d="M190 36h30"/><path class="hd" d="M220 30l10 6-10 6z"/>
+          <rect class="nd" x="234" y="22" width="62" height="28" rx="14"/><text x="265" y="40" text-anchor="middle">Sales −</text>
+        </svg>
+        <p class="ro" id="o-cost"></p>
+        <div class="sl"><label for="cost"><span>Extra seconds</span><output id="v-cost" for="cost"></output></label><input type="range" id="cost" min="0" max="30" step="1" value="0"></div>
+        <p class="ex">Each friendly transaction takes longer. Lines grow and hurried customers leave without buying. If this holds, friendliness genuinely costs sales.</p>
+      </div>
+    </div>
+    <ol class="story" id="story" hidden aria-label="Steps of the full-model run">
+      <li class="st" id="st0"><span class="sn">0</span><span class="sl">Nothing on</span><span class="sv" id="sv0">–</span></li>
+      <li class="st" id="st1"><span class="sn">1</span><span class="sl">+ Friendly clerks bring customers back</span><span class="sv" id="sv1">–</span></li>
+      <li class="st" id="st2"><span class="sn">2</span><span class="sl">+ Busy clerks stop smiling</span><span class="sv" id="sv2">–</span></li>
+      <li class="st" id="st3"><span class="sn">3</span><span class="sl">+ Smiling slows the line</span><span class="sv" id="sv3">–</span></li>
+    </ol>
+    <p id="status" role="status" aria-live="polite"></p>
+  </div>
+</section>
+
+<section id="live" aria-labelledby="h-live">
+  <div class="sec-head"><p class="eyebrow">2 · Watch</p><h2 id="h-live">Watch the rules play out in one store</h2>
+    <p class="note">One store follows exactly the rules set above. Customers arrive from the right and queue at the counter. The clerk’s face shows whether the current transaction includes a smile. Switch to a busier store and watch the share of friendly transactions change.</p></div>
+  <div class="panel">
+    <div class="live-top">
+      <button type="button" class="primary" id="play">Play</button>
+      <div class="seg" role="group" aria-label="Store traffic" id="traffic">
+        <button type="button" data-lam="18" aria-pressed="false">Quiet · 18/h</button>
+        <button type="button" data-lam="40" aria-pressed="true">Typical · 40/h</button>
+        <button type="button" data-lam="85" aria-pressed="false">Busy · 85/h</button>
+      </div>
+      <div class="seg" role="group" aria-label="Playback speed" id="speed">
+        <button type="button" data-speed="1" aria-pressed="true">1×</button>
+        <button type="button" data-speed="3" aria-pressed="false">3×</button>
+      </div>
+      <span class="small" id="live-label"></span>
+    </div>
+    <canvas id="live-canvas" aria-label="Animation of customers queueing at one store counter"></canvas>
+    <p class="legend"><span class="lg-smile">Clerk greets, smiles and thanks</span><span class="lg-flat">Clerk serves without a smile</span><span class="lg-wait">Customers waiting</span><span class="lg-balk">Customer leaves without buying</span></p>
+    <div class="live-stats">
+      <div><b id="l-served">0</b><span>customers served</span></div>
+      <div><b id="l-share">0%</b><span>of transactions with a smile</span></div>
+      <div><b id="l-balk">0</b><span>left without buying</span></div>
+      <div><b id="l-time">0 h</b><span>simulated opening time</span></div>
+    </div>
+  </div>
+</section>
+
+<section id="results" aria-labelledby="h-res">
+  <div class="sec-head"><p class="eyebrow">3 · Results</p><h2 id="h-res">What the original design would conclude, and what is actually true</h2>
+    <p class="note">All 576 stores have been simulated with the settings above. The left tiles show what a researcher would see in the mystery-shopper data. The right tile shows what the model knows but no field study can observe.</p></div>
+  <div class="answer" id="answer">
+    <p class="eyebrow">The question the original design could not answer</p>
+    <h3>What would happen to sales if every store became 20 points friendlier?</h3>
+    <div class="ans-row">
+      <div class="ans-tile"><span class="k">What the design reports</span><span class="v" id="a-beta">…</span><span class="p">regression coefficient, in standard deviations of sales</span></div>
+      <div class="ans-vs" aria-hidden="true">versus</div>
+      <div class="ans-tile truth"><span class="k">What is actually true in the model</span><span class="v" id="a-eff">…</span><span class="p">change in total sales when the same stores are rerun friendlier</span></div>
+    </div>
+    <p class="ans-text" id="a-text">Running the first simulation.</p>
+  </div>
+  <div class="verdict none" id="verdict">
+    <div class="vi" id="verdict-icon"></div>
+    <div class="vt"><span class="tag" id="verdict-tag">Verdict</span><p id="verdict-text">Running the first simulation.</p></div>
+  </div>
+  <div class="panel">
+    <div class="tiles">
+      <div class="tg"><h3>Seen by the researcher</h3>
+        <div class="row">
+          <div class="tile key"><span class="k">Effect of friendliness on sales, as the original regression reports it</span><span class="v" id="t-beta">…</span><span class="p">Beta, line length controlled · published −.10</span></div>
+          <div class="tile"><span class="k">Are friendlier stores less busy?</span><span class="v" id="t-dl">…</span><span class="p">Friendliness × line length · published −.18</span></div>
+          <div class="tile"><span class="k">Do busier stores sell more?</span><span class="v" id="t-ls">…</span><span class="p">Line length × sales · published +.18</span></div>
+        </div>
+      </div>
+      <div class="tg"><h3>Known only to the model</h3>
+        <div class="row"><div class="tile truth"><span class="k">True change in total sales if every store became 20 points friendlier</span><span class="v" id="t-eff">…</span><span class="p">Same stores rerun with a higher norm. Not observable in field data</span></div></div>
+      </div>
+    </div>
+    <div class="targets" id="targets" aria-label="Simulated statistics against the published values"></div>
+    <p class="small">Bars: simulated value. Dashed marker: published value. A green dot means the simulated value is within .06 of the published one.</p>
+  </div>
+  <div class="panel">
+    <figure class="chart" id="scatter-wrap">
+      <figcaption>Each dot is one simulated store as the mystery shoppers saw it. Dots further right are friendlier stores. A line sloping downward means friendlier stores sell less, which is the published pattern. Hover over a dot for its details.</figcaption>
+      <svg id="scatter" role="img" aria-label="Scatter plot of observed display index against standardized store sales for the simulated stores, with a fitted line"></svg>
+      <div class="tip" id="tip" hidden></div>
+    </figure>
+  </div>
+</section>
+
+<section id="compare" aria-labelledby="h-cmp">
+  <div class="sec-head"><p class="eyebrow">4 · Compare</p><h2 id="h-cmp">Which explanation reproduces the published numbers?</h2>
+    <p class="note">Run the five presets with the current seed and put them side by side. A preset earns a match when it lands within .06 of the published value. The published pattern needs both the sales effect and the queue link.</p></div>
+  <div class="panel">
+    <div class="cmp-head">
+      <button type="button" class="primary" id="cmp-run">Run all five presets</button>
+      <span class="small" id="cmp-status">Not run yet.</span>
+    </div>
+    <div class="cmp-grid">
+      <figure class="chart" id="cmp-beta-wrap"><figcaption>Effect of friendliness on sales (beta). Published: −.10</figcaption><svg id="cmp-beta" role="img" aria-label="Dot chart of the regression beta per preset"></svg></figure>
+      <figure class="chart" id="cmp-dl-wrap"><figcaption>Are friendlier stores less busy? (correlation). Published: −.18</figcaption><svg id="cmp-dl" role="img" aria-label="Dot chart of the display-line correlation per preset"></svg></figure>
+    </div>
+    <div class="chart-foot"><span><i class="dot"></i>Matches the published value</span><span><i class="dot off"></i>Does not match</span><span><i class="dash"></i>Published value</span></div>
+  </div>
+</section>
+
+<section id="reps" aria-labelledby="h-rep">
+  <div class="sec-head"><p class="eyebrow">5 · Reruns</p><h2 id="h-rep">Is the result stable, or did one run get lucky?</h2>
+    <p class="note">Who walks in when, and whether a clerk smiles, are decided by random numbers. Rerunning the same settings with 20 different seeds shows how much the coefficient moves by chance alone. If the dots cluster on one side of zero, the pattern is a real consequence of the chosen mechanisms.</p></div>
+  <div class="panel">
+    <div class="rep-top">
+      <button type="button" class="primary" id="rep">Run 20 reruns</button>
+      <div class="bar" aria-hidden="true"><span id="rep-bar"></span></div>
+      <span class="badge" id="rep-badge">Not run yet</span>
+    </div>
+    <p class="small" id="rep-status" role="status" aria-live="polite">Not run yet for these settings.</p>
+    <figure class="chart" id="strip-wrap">
+      <figcaption>Regression coefficient of friendliness on sales, one dot per rerun. Dashed line: the published value. Solid line: no relationship.</figcaption>
+      <svg id="strip" role="img" aria-label="Strip plot of the regression beta across replications, with reference lines at zero and at the published value of minus .10"></svg>
+      <div class="tip" id="tip2" hidden></div>
+    </figure>
+  </div>
+</section>
+
+<section id="findings" aria-labelledby="h-find">
+  <div class="sec-head"><p class="eyebrow">6 · Findings</p><h2 id="h-find">What the simulation answers, question by question</h2>
+    <p class="note">Recorded runs with seed 2026, 20 reruns per setting (seeds 2027 to 2046) and strength sweeps over five seeds. Press the Compare and Reruns buttons above to reproduce them on this machine.</p></div>
+  <div class="findings">
+    <div class="finding"><div class="fq"><span class="fn">1</span><h3>Does the published −.10 show that smiling costs sales?</h3></div>
+      <p>Not on its own. A coefficient near −.10 appears in the model only when a friendly transaction costs service time. Even then the true cost of making every store 20 points friendlier is small, between −0.6% and −2.6% of sales depending on the mix. The coefficient is in standard deviations of sales and is not an effect size.</p></div>
+    <div class="finding"><div class="fq"><span class="fn">2</span><h3>Which everyday mechanism could have produced the published pattern?</h3></div>
+      <p>No single one. Store pace alone reproduces the queue link (friendlier stores have shorter lines, −.20 against −.18) but leaves the coefficient a coin flip, negative in 9 of 20 reruns. Service time alone gives a stable negative coefficient (19 of 20) but makes friendlier stores busier, the opposite of the case. Only the mix of store pace and service time, with or without reinforcement, reproduces both numbers in 20 of 20 reruns.</p></div>
+    <div class="finding"><div class="fq"><span class="fn">3</span><h3>Does the study’s own hypothesis, that friendly clerks bring customers back, show up?</h3></div>
+      <p>Not at the default strength. Raising the return chance from 30% to 40% after a friendly visit moves the coefficient by about .01 and the true effect by about +1%. The hypothesis is not refuted; it is too weak at this strength to be visible to the original design.</p></div>
+    <div class="finding"><div class="fq"><span class="fn">4</span><h3>Could the original design have told these stories apart?</h3></div>
+      <p>No. The same cross-section fits a direct cost, a hidden driver and a chain through line length equally well. Under the chain, the line-length control removes part of the effect it is meant to isolate. Reruns with different seeds spread the coefficient by about ±.04, so a single survey can land on −.10 by chance from several of these worlds.</p></div>
+    <div class="finding"><div class="fq"><span class="fn">5</span><h3>What would a field study have to measure next?</h3></div>
+      <p>Three things the case does not report: the extra seconds a friendly transaction takes (the sweeps need about 30 s for a −.10), the share of customers who leave when more than three are waiting, and the return rate after a friendly visit. Each is measurable with a stopwatch, a door counter or loyalty-card data, and each can rule a mechanism out.</p></div>
+  </div>
+  <div class="scroll"><table>
+    <thead><tr><th>Mechanisms on</th><th class="n">Beta, seed 2026</th><th class="n">Negative in 20 reruns</th><th class="n">Friendliness × line length</th><th class="n">True effect</th><th>Reproduces the case?</th></tr></thead>
+    <tbody>
+      <tr><td>None</td><td class="n">.01</td><td class="n">7</td><td class="n">.02</td><td class="n">0.0%</td><td>no</td></tr>
+      <tr><td>Reinforcement only</td><td class="n">.04</td><td class="n">6</td><td class="n">.05</td><td class="n">+1.4%</td><td>no</td></tr>
+      <tr><td>Store pace only</td><td class="n">.00</td><td class="n">9</td><td class="n">−.20</td><td class="n">0.0%</td><td>no: queue link only</td></tr>
+      <tr><td>Service time only</td><td class="n">−.06</td><td class="n">19</td><td class="n">+.15</td><td class="n">−2.6%</td><td>no: queue link wrong way</td></tr>
+      <tr><td>Reinforcement + store pace</td><td class="n">.00</td><td class="n">12</td><td class="n">−.17</td><td class="n">+1.2%</td><td>no</td></tr>
+      <tr><td>Reinforcement + service time</td><td class="n">−.09</td><td class="n">20</td><td class="n">+.12</td><td class="n">−1.8%</td><td>no: queue link wrong way</td></tr>
+      <tr><td>Store pace + service time</td><td class="n">−.05</td><td class="n">20</td><td class="n">−.15</td><td class="n">−1.4%</td><td><b>yes</b></td></tr>
+      <tr><td>All three</td><td class="n">−.10</td><td class="n">20</td><td class="n">−.15</td><td class="n">−0.6%</td><td><b>yes</b></td></tr>
+      <tr><td>Published</td><td class="n">−.10</td><td class="n">–</td><td class="n">−.18</td><td class="n">unobservable</td><td></td></tr>
+    </tbody>
+  </table></div>
+  <p class="small">“Reproduces the case” means the coefficient is negative in at least 18 of 20 reruns and the friendliness × line length correlation lies within .06 of the published −.18. A mix that reproduces the numbers is a sufficient explanation, not a proven one.</p>
+</section>
+
+<section id="model-notes" aria-labelledby="h-model">
+  <div class="sec-head"><p class="eyebrow">7 · Model</p><h2 id="h-model">Rules, measurement, parameters and limits</h2></div>
+  <details open><summary>Key terms</summary><div class="body">
+    <dl class="terms">
+      <dt>Mechanism</dt><dd>A rule about how customers or clerks behave, such as “a friendly transaction makes a customer more likely to return”. Each card controls one.</dd>
+      <dt>Display index</dt><dd>The share of observed transactions in which the clerk greeted, smiled, made eye contact and said thank you. Measured by mystery shoppers, as in the case. Also called friendliness on this page.</dd>
+      <dt>Line length</dt><dd>The largest number of customers at the counter during a mystery-shopper visit. The original study used it as a control variable, and so does this page.</dd>
+      <dt>Regression beta</dt><dd>The strength of the relationship between display index and sales after line length is taken into account, in standard deviations. Negative means friendlier stores sell less.</dd>
+      <dt>True effect</dt><dd>The change in total sales when the very same stores are rerun with a higher display norm and nothing else changed. Only a simulation can report this.</dd>
+      <dt>Seed and rerun</dt><dd>The seed fixes the random numbers, so a run can be repeated exactly. A rerun is the same settings with a different seed.</dd>
+    </dl>
+  </div></details>
+  <details><summary>Variables: what they mean here, and why they are measured this way</summary><div class="body">
+    <p class="note">Every quantity on this page is defined twice: once as the original study measured it, once as the model produces it. The model copies the study’s measurement wherever the case describes it, so that the artificial mystery shoppers see the stores the way the real ones did. Where the case is silent, the choice is stated and justified.</p>
+    <div class="scroll"><table class="ops">
+    <thead><tr><th>Variable</th><th>In the original study</th><th>In this model</th><th>Why this way</th></tr></thead>
+    <tbody>
+      <tr><td><b>Friendly transaction</b><br><span class="small">“displayed positive emotion”</span></td><td>A mystery shopper codes a transaction as positive when the clerk greets, smiles, makes eye contact and says thank you.</td><td>Each transaction is friendly or not. The clerk is friendly with probability equal to the store norm, reduced by the store-pace mechanism for each person waiting.</td><td>The case codes emotion per transaction, as a yes or no, so the model generates it per transaction. A probability, not a fixed trait, lets the same clerk smile in a quiet hour and not in a busy one.</td></tr>
+      <tr><td><b>Friendliness of a store</b><br><span class="small">“display index”</span></td><td>Share of coded transactions with positive display, across two or three visits of 4 to 12 minutes, at most 20 transactions each, one clerk per visit.</td><td>Exactly the same procedure, run by virtual shoppers: 2 to 3 visits at random times, 4 to 12 minutes, 1 to 20 transactions coded.</td><td>Copying the sampling keeps the measurement error of the original design in the model. A noisy index is part of what the design should reproduce, not something to clean away.</td></tr>
+      <tr><td><b>Store norm</b></td><td>Not measured. Sutton &amp; Rafaeli treat the emotional front as an organisational norm that customers come to expect.</td><td>Each store draws a base probability of a friendly transaction (mean .60, SD .20), fixed for the run.</td><td>The norm is the store-level cause the study theorises about. Setting it per store, independent of traffic, means any link between friendliness and sales must come from the mechanisms.</td></tr>
+      <tr><td><b>Sales</b></td><td>Annual store sales, standardised across the 576 stores.</td><td>Completed transactions over 60 opening hours, times a store basket value, standardised across stores.</td><td>Sales must respond to what happens at the counter, so they are counted basket by basket. Sixty hours instead of a year keeps a run to about one second; the standardisation matches the case.</td></tr>
+      <tr><td><b>Line length</b></td><td>Largest number of customers at the counter during a visit, averaged over visits. Used as a control variable.</td><td>The same count, taken by the virtual shopper during each visit and averaged.</td><td>It is the only control in the case that the model can reproduce, and it is the variable through which two of the three mechanisms work.</td></tr>
+      <tr><td><b>Customer traffic</b></td><td>Not measured directly; line length and other controls stand in for it.</td><td>New customers per hour, drawn per store (median 34, lognormal), varying hour by hour.</td><td>Traffic is the hidden driver in the store-pace story. The model knows it, the estimator does not, which is the point.</td></tr>
+      <tr><td><b>Reinforcement</b><br><span class="small">mechanism 1</span></td><td>The study’s hypothesis: friendly fronts bring customers back and so raise sales.</td><td>After a friendly transaction the customer’s chance of returning within 31 hours rises from 30% by the slider value (default +10 points).</td><td>The hypothesis is about patronage, so it is written as a return probability. Word of mouth is folded into the same number because the model has no social network.</td></tr>
+      <tr><td><b>Store pace</b><br><span class="small">mechanism 2</span></td><td>The authors’ own interpretation of the negative result: busy clerks stop smiling, busy stores sell more.</td><td>Each person waiting cuts the probability of a friendly transaction by a fixed share (default 22%).</td><td>A per-person reduction is the simplest rule that makes friendliness fall with the queue. It creates the queue link between friendliness and line length that the case reports.</td></tr>
+      <tr><td><b>Service-time cost</b><br><span class="small">mechanism 3</span></td><td>Not considered in the study.</td><td>A friendly transaction takes extra seconds (default 24 s on top of about 30 s).</td><td>The only story in which the smile genuinely costs sales, through longer lines and walk-outs. Seconds per transaction is something a field study can time with a stopwatch.</td></tr>
+      <tr><td><b>Walk-out</b></td><td>Not measured.</td><td>A customer who sees more than three people at the counter may leave; the longer the line, the more likely.</td><td>Needed for lines to cost sales at all. The threshold and the steepness are assumptions and are listed under Model.</td></tr>
+      <tr><td><b>Effect as the design reports it</b><br><span class="small">“regression beta”</span></td><td>Standardised sales regressed on the display index with eight controls; the published coefficient is −.10.</td><td>Standardised sales regressed on the display index and line length, the one control that exists in the model.</td><td>Running the original estimator on artificial data is how the page asks what the design would have reported, as opposed to what is true.</td></tr>
+      <tr><td><b>True effect</b></td><td>Not observable in field data.</td><td>The same 576 stores, same random draws, rerun with every store norm raised by .20; the relative change in total sales.</td><td>A controlled rerun of identical stores is the switch the field never had. The .20 step is about one standard deviation of the norm.</td></tr>
+    </tbody>
+  </table></div>
+    <p class="small">Parameters that the case does not report are assumptions. They are listed with their values under Model and are the first things a field study should replace with measurements.</p>
+  </div></details>
+  <details><summary>Rules, in order of execution every 10 simulated seconds</summary><div class="body">
+    <ol class="rules">
+      <li><b>Arrival.</b> New customers arrive at random at the store's hourly traffic rate, which also varies from hour to hour. Returning customers arrive when they are due.</li>
+      <li><b>Queue or leave.</b> A customer who sees more than three people at the counter may leave without buying. The longer the line, the more likely.</li>
+      <li><b>Transaction.</b> One clerk serves one customer at a time. The clerk shows positive emotion with the store's display norm as probability, reduced by the store pace mechanism for each person waiting.</li>
+      <li><b>Service time.</b> A transaction takes about 30 seconds, plus the service time cost if emotion is displayed.</li>
+      <li><b>Purchase.</b> Each completed transaction adds one basket to store sales.</li>
+      <li><b>Learning.</b> The customer returns later with a base probability, raised by the reinforcement mechanism after a friendly transaction. Word of mouth is folded into this probability.</li>
+    </ol>
+  </div></details>
+  <details><summary>Measurement, copied from the case</summary><div class="body">
+    <ol class="rules">
+      <li>Each store is visited twice; one in four stores a third time.</li>
+      <li>A visit lasts 4 to 12 minutes and codes up to 20 transactions, at least one.</li>
+      <li>The display index is the share of coded transactions with positive display.</li>
+      <li>Line length is the largest number of customers at the counter during a visit, averaged over visits.</li>
+      <li>Sales are standardized across stores and regressed on the display index and line length.</li>
+    </ol>
+    <p class="small">The original regression had eight controls. Only line length exists in this model, so it is the only control used.</p>
+  </div></details>
+  <details><summary>Parameters and their basis</summary><div class="body">
+    <div class="scroll"><table>
+      <thead><tr><th>Parameter</th><th class="n">Value</th><th>Basis</th></tr></thead>
+      <tbody>
+        <tr><td>Number of stores</td><td class="n">576</td><td>Case: sample size</td></tr>
+        <tr><td>Mystery-shopper visits, duration, transactions coded</td><td class="n">2 to 3; 4 to 12 min; 1 to 20</td><td>Case: procedures</td></tr>
+        <tr><td>Display norm per store</td><td class="n" id="p-norm"></td><td>Assumed, set so that the observed index is near the published mean of .51 (SD .23)</td></tr>
+        <tr><td>New customers per hour (median store)</td><td class="n" id="p-lam"></td><td>Assumed, set so that line length is near the published mean of 2.88</td></tr>
+        <tr><td>Spread of traffic across stores and across hours</td><td class="n" id="p-sig"></td><td>Assumed</td></tr>
+        <tr><td>Base service time per transaction</td><td class="n" id="p-svc"></td><td>Assumed</td></tr>
+        <tr><td>Base probability that a customer returns</td><td class="n" id="p-ret"></td><td>Assumed</td></tr>
+        <tr><td>Line length tolerated before customers may leave</td><td class="n" id="p-tol"></td><td>Assumed</td></tr>
+        <tr><td>Basket size variation between stores</td><td class="n" id="p-bas"></td><td>Assumed</td></tr>
+        <tr><td>Simulated opening time per store</td><td class="n" id="p-hrs"></td><td>Chosen for computing speed; the case used sales for one year</td></tr>
+      </tbody>
+    </table></div>
+  </div></details>
+  <details><summary>What the model leaves out, and open points</summary><div class="body">
+    <div class="cols">
+      <div><h3>Deliberately left out</h3><ul class="rules">
+        <li>Display norm and store traffic are drawn independently. Any correlation between friendliness and sales comes from the three mechanisms, not from how stores are set up.</li>
+        <li>One clerk and one register per store. No staffing decisions, no shifts.</li>
+        <li>No stock levels, ownership, supervision costs, region or gender composition.</li>
+        <li>No reaction of clerks to being observed.</li></ul></div>
+      <div><h3>Open points for revision</h3><ul class="rules">
+        <li>Service times, walk-out behaviour and return rates are not reported in the case. They would need to be measured in stores.</li>
+        <li>The three mechanisms are my candidate explanations. Others could be added, for example clerks who become friendlier when a store is slow because they are bored.</li>
+        <li>A mechanism mix that reproduces the published numbers is sufficient, not proven. Several mixes may fit.</li>
+        <li>The model overstates how well line length predicts sales. Real sales depend on much that is left out here, such as store size, location and fuel sales.</li>
+        <li>A single seed can land on the published value by chance. Read patterns across the reruns, not one run.</li></ul></div>
+    </div>
+  </div></details>
+</section>
+
+<footer><span>Linda Samsinger · University of St.Gallen · Crafting and Evaluating Research Designs, 2026</span><span><a href="https://bluetenhonig.github.io/convenience-store-simulation/">https://bluetenhonig.github.io/convenience-store-simulation/</a></span><span>Case: Sutton &amp; Rafaeli (1988). Method after Brenner &amp; Murmann (2016).</span></footer>
+</div>
+
+<script id="model">
+var SIM = (function () {
+  var F = {
+    stores: 576, hours: 60, tick: 10,
+    lamMedian: 34, lamSigma: 0.45, hourSigma: 0.35,
+    normMean: 0.60, normSd: 0.20,
+    baseService: 30, returnBase: 0.30, returnHours: 30,
+    tolerance: 3, impatience: 0.35, basketSigma: 0.40, normBump: 0.20
+  };
+  var TPH = 3600 / F.tick;
+
+  function rng32(a) {
+    return function () {
+      a |= 0; a = a + 0x6D2B79F5 | 0;
+      var t = Math.imul(a ^ a >>> 15, 1 | a);
+      t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+      return ((t ^ t >>> 14) >>> 0) / 4294967296;
+    };
+  }
+  function randn(r) { var u = 1 - r(), v = r(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v); }
+  function clampNorm(x) { return Math.min(0.98, Math.max(0.05, x)); }
+
+  function newStore(P, rA, T, lamFixed) {
+    var lam = F.lamMedian * Math.exp(F.lamSigma * randn(rA));
+    var norm = clampNorm(F.normMean + F.normSd * randn(rA));
+    var price = Math.exp(F.basketSigma * randn(rA));
+    return {
+      lam: lamFixed || lam, norm: clampNorm(norm + (P.normShift || 0)), price: price,
+      waiting: 0, busy: false, remaining: 0, curDisp: false,
+      served: 0, shown: 0, balked: 0, arrived: 0, sched: new Uint8Array(T),
+      evStart: false, evArr: 0, evBalk: 0
+    };
+  }
+
+  // One 10-second step of one store. rA drives exogenous arrivals, rB drives behaviour.
+  function step(st, t, T, expL, P, rA, rB, wrap) {
+    var k = 0, p = rA();
+    while (p > expL) { k++; p *= rA(); }
+    k += st.sched[t]; st.sched[t] = 0;
+    st.evArr = k; st.evBalk = 0; st.evStart = false;
+    for (var i = 0; i < k; i++) {
+      var line = st.waiting + (st.busy ? 1 : 0);
+      if (line > F.tolerance && rB() < 1 - Math.exp(-F.impatience * (line - F.tolerance))) { st.balked++; st.evBalk++; }
+      else st.waiting++;
+    }
+    st.arrived += k;
+    if (st.busy) {
+      st.remaining -= F.tick;
+      if (st.remaining <= 0) {
+        st.busy = false; st.served++;
+        if (st.curDisp) st.shown++;
+        if (rB() < F.returnBase + (st.curDisp ? P.reinf : 0)) {
+          var due = t + Math.floor(TPH * (1 + rB() * F.returnHours));
+          if (wrap) due = due % T;
+          if (due < T && st.sched[due] < 255) st.sched[due]++;
+        }
+      }
+    }
+    if (!st.busy && st.waiting > 0) {
+      st.waiting--; st.busy = true;
+      st.curDisp = rB() < st.norm * Math.exp(-P.pace * st.waiting);
+      st.remaining = F.baseService * (0.6 + 0.8 * rB()) + (st.curDisp ? P.cost : 0);
+      st.evStart = true;
+    }
+  }
+
+  function simulate(P, seed) {
+    var T = F.hours * TPH, out = [], total = 0;
+    for (var s = 0; s < F.stores; s++) {
+      var rA = rng32(seed * 7919 + s * 2 + 1), rB = rng32(seed * 104729 + s * 2 + 2);
+      var st = newStore(P, rA, T);
+      var nv = 2 + (rA() < 0.25 ? 1 : 0), vs = [], ve = [], vn = [], vd = [], vm = [], done = [];
+      for (var v = 0; v < nv; v++) {
+        var a = Math.floor(rA() * (T - 2 * TPH));
+        vs.push(a); ve.push(a + 24 + Math.floor(rA() * 49)); vn.push(0); vd.push(0); vm.push(0); done.push(false);
+      }
+      var expL = 1;
+      for (var t = 0; t < T; t++) {
+        if (t % TPH === 0) expL = Math.exp(-st.lam * Math.exp(F.hourSigma * randn(rA)) / TPH);
+        step(st, t, T, expL, P, rA, rB, false);
+        for (v = 0; v < nv; v++) {
+          if (done[v] || t < vs[v]) continue;
+          var line = st.waiting + (st.busy ? 1 : 0);
+          if (line > vm[v]) vm[v] = line;
+          if (st.evStart) { vn[v]++; if (st.curDisp) vd[v]++; }
+          if ((t >= ve[v] && vn[v] >= 1) || vn[v] >= 20) done[v] = true;
+        }
+      }
+      var n = 0, d = 0, m = 0;
+      for (v = 0; v < nv; v++) { n += vn[v]; d += vd[v]; m += vm[v]; }
+      var sales = st.served * st.price;
+      total += sales;
+      out.push({ id: s + 1, sales: sales, display: n ? d / n : NaN, line: m / nv, coded: n,
+                 traffic: st.lam, norm: st.norm, served: st.served, balked: st.balked });
+    }
+    return { stores: out, total: total };
+  }
+
+  function corr(a, b) {
+    var n = a.length, ma = 0, mb = 0, i;
+    for (i = 0; i < n; i++) { ma += a[i]; mb += b[i]; }
+    ma /= n; mb /= n;
+    var sab = 0, saa = 0, sbb = 0;
+    for (i = 0; i < n; i++) { var x = a[i] - ma, y = b[i] - mb; sab += x * y; saa += x * x; sbb += y * y; }
+    return saa && sbb ? sab / Math.sqrt(saa * sbb) : 0;
+  }
+  function meanSd(a) {
+    var n = a.length, m = 0, i; for (i = 0; i < n; i++) m += a[i]; m /= n;
+    var s = 0; for (i = 0; i < n; i++) s += (a[i] - m) * (a[i] - m);
+    return { mean: m, sd: Math.sqrt(s / (n - 1)) };
+  }
+
+  // The original analysis: standardized sales regressed on display index and line length.
+  function analyse(res) {
+    var st = res.stores.filter(function (s) { return !isNaN(s.display); });
+    var y = st.map(function (s) { return s.sales; }), d = st.map(function (s) { return s.display; }), l = st.map(function (s) { return s.line; });
+    var rDS = corr(d, y), rLS = corr(l, y), rDL = corr(d, l), n = st.length;
+    var beta = (rDS - rLS * rDL) / (1 - rDL * rDL), betaL = (rLS - rDS * rDL) / (1 - rDL * rDL);
+    var r2 = beta * rDS + betaL * rLS;
+    var se = Math.sqrt((1 - r2) / ((n - 3) * (1 - rDL * rDL)));
+    var my = meanSd(y);
+    st.forEach(function (s) { s.z = (s.sales - my.mean) / my.sd; });
+    return { n: n, beta: beta, se: se, betaLine: betaL, r2: r2, rDS: rDS, rLS: rLS, rDL: rDL,
+             display: meanSd(d), line: meanSd(l), stores: st };
+  }
+
+  function run(P, seed, withEffect) {
+    var base = simulate(P, seed), a = analyse(base);
+    if (withEffect) {
+      var cf = simulate({ reinf: P.reinf, pace: P.pace, cost: P.cost, normShift: F.normBump }, seed);
+      a.effect = cf.total / base.total - 1;
+    }
+    return a;
+  }
+
+  return { F: F, TPH: TPH, rng32: rng32, randn: randn, newStore: newStore, step: step, simulate: simulate, analyse: analyse, run: run };
+})();
+</script>
+<script>
+(function () {
+  'use strict';
+  var $ = function (id) { return document.getElementById(id); };
+  var F = SIM.F, state = { result: null, reps: [], cmp: null, busy: false };
+  var SVGNS = 'http://www.w3.org/2000/svg';
+  var REDUCED = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var PUB = { beta: -0.10, rDS: -0.06, rDL: -0.18, rLS: 0.18 };
+  var TOL = 0.06;
+  var PRESETS = [
+    { name: 'None', p: [0, 0, 0] }, { name: 'Reinforcement only', p: [0.10, 0, 0] }, { name: 'Store pace only', p: [0, 0.25, 0] },
+    { name: 'Service time only', p: [0, 0, 24] }, { name: 'All three', p: [0.10, 0.25, 24] }];
+
+  /* ---------- formatting ---------- */
+  function fmt(x, d) { var s = Math.abs(x).toFixed(d === undefined ? 2 : d).replace(/^0\./, '.'); return (x < 0 ? '−' : '') + s; }
+  function signed(x, d) { return (x > 0 ? '+' : '') + fmt(x, d); }
+  function pct(x) { return (x > 0 ? '+' : x < 0 ? '−' : '') + Math.abs(x * 100).toFixed(1) + '%'; }
+  function el(name, attrs, text) { var e = document.createElementNS(SVGNS, name); for (var k in attrs) e.setAttribute(k, attrs[k]); if (text !== undefined) e.textContent = text; return e; }
+  function h(tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; }
+
+  /* ---------- worker (keeps the page responsive); falls back to the main thread ---------- */
+  var worker = null, jobId = 0, jobs = {}, workerOK = false;
+  function runSync(job) { var a = SIM.run(job.P, job.seed, job.withEffect); job.cb(a); }
+  function failWorker() {
+    if (worker) { try { worker.terminate(); } catch (e) {} }
+    worker = null;
+    var pending = jobs; jobs = {};
+    Object.keys(pending).forEach(function (id) { var j = pending[id]; clearTimeout(j.timer); setTimeout(function () { runSync(j); }, 10); });
+  }
+  try {
+    var src = document.getElementById('model').textContent + ';self.onmessage=function(e){var d=e.data;var a=SIM.run(d.P,d.seed,d.withEffect);self.postMessage({id:d.id,a:a});};';
+    worker = new Worker(URL.createObjectURL(new Blob([src], { type: 'text/javascript' })));
+    worker.onmessage = function (e) { workerOK = true; var j = jobs[e.data.id]; if (j) { delete jobs[e.data.id]; clearTimeout(j.timer); j.cb(e.data.a); } };
+    worker.onerror = function () { failWorker(); };
+  } catch (err) { worker = null; }
+  function runAsync(P, seed, withEffect, cb) {
+    var job = { P: P, seed: seed, withEffect: withEffect, cb: cb };
+    if (worker) {
+      var id = ++jobId; jobs[id] = job;
+      job.timer = setTimeout(function () { if (jobs[id] && !workerOK) failWorker(); }, 4000);
+      worker.postMessage({ id: id, P: P, seed: seed, withEffect: withEffect });
+    } else setTimeout(function () { runSync(job); }, 20);
+  }
+
+  /* ---------- controls ---------- */
+  var mech = { reinf: { on: false }, pace: { on: false }, cost: { on: false } };
+  var DEFAULTS = { reinf: 0.10, pace: 0.25, cost: 24 };
+  function params() {
+    return { reinf: mech.reinf.on ? +$('reinf').value : 0, pace: mech.pace.on ? +$('pace').value : 0, cost: mech.cost.on ? +$('cost').value : 0 };
+  }
+  function setBusy(on, text) {
+    state.busy = on; $('navdot').className = 'dot' + (on ? ' busy' : ''); $('navtext').textContent = text || (on ? 'Simulating' : 'Ready');
+    $('run').disabled = on; $('rep').disabled = on; $('cmp-run').disabled = on; $('story-run').disabled = on;
+  }
+  function setProgress(f) { $('navprog').style.width = (f * 100) + '%'; if (f >= 1) setTimeout(function () { $('navprog').style.width = '0'; }, 400); }
+  function syncLabels() {
+    var p = params();
+    ['reinf', 'pace', 'cost'].forEach(function (k) {
+      var card = $('m-' + k); card.classList.toggle('on', mech[k].on); card.classList.toggle('off', !mech[k].on);
+      $('sw-' + k).setAttribute('aria-checked', mech[k].on ? 'true' : 'false');
+      $(k).disabled = !mech[k].on;
+      card.querySelectorAll('.ar').forEach(function (a) { a.classList.toggle('ar-off', !mech[k].on); });
+      card.querySelectorAll('.hd').forEach(function (a) { a.classList.toggle('hd-off', !mech[k].on); });
+    });
+    $('v-reinf').textContent = '+' + Math.round(+$('reinf').value * 100) + ' points';
+    $('v-pace').textContent = Math.round((1 - Math.exp(-(+$('pace').value))) * 100) + '% per person waiting';
+    $('v-cost').textContent = '+' + $('cost').value + ' s';
+    $('o-reinf').textContent = mech.reinf.on ? (p.reinf ? 'A friendly transaction raises the chance of a return visit from ' + Math.round(F.returnBase * 100) + '% to ' + Math.round((F.returnBase + p.reinf) * 100) + '%.' : 'On, but at zero strength: no effect.') : 'Off: friendliness does not change whether customers return.';
+    $('o-pace').textContent = mech.pace.on ? (p.pace ? 'Each person waiting cuts the chance of a smile by ' + Math.round((1 - Math.exp(-p.pace)) * 100) + '%.' : 'On, but at zero strength: no effect.') : 'Off: clerks behave the same whether or not people are waiting.';
+    $('o-cost').textContent = mech.cost.on ? (p.cost ? 'A friendly transaction takes ' + p.cost + ' s longer: about ' + (F.baseService + p.cost) + ' s instead of ' + F.baseService + ' s.' : 'On, but at zero extra seconds: no effect.') : 'Off: a friendly transaction takes no extra time.';
+    var key = [p.reinf, p.pace, p.cost].join(',');
+    document.querySelectorAll('[data-preset]').forEach(function (b) {
+      var q = b.dataset.preset.split(',').map(Number).join(',');
+      b.setAttribute('aria-pressed', q === key ? 'true' : 'false');
+    });
+  }
+  function animateSlider(id, target, dur) {
+    var inp = $(id), from = +inp.value;
+    if (REDUCED || !dur || from === target) { inp.value = target; syncLabels(); return; }
+    var start = performance.now(), done = false;
+    var guard = setTimeout(function () { done = true; inp.value = target; syncLabels(); }, dur + 150);
+    (function step(t) {
+      if (done) return;
+      var k = Math.min(1, (t - start) / dur); k = 1 - Math.pow(1 - k, 2);
+      inp.value = from + (target - from) * k; syncLabels();
+      if (k < 1) requestAnimationFrame(step); else { done = true; clearTimeout(guard); inp.value = target; syncLabels(); }
+    })(start);
+  }
+  function applyPreset(str, animate) {
+    var v = str.split(',').map(Number), keys = ['reinf', 'pace', 'cost'], changed = [];
+    keys.forEach(function (k, i) {
+      var on = v[i] > 0, was = mech[k].on;
+      mech[k].on = on;
+      if (on) animateSlider(k, v[i], animate ? 450 : 0);
+      if (on !== was) changed.push(k);
+    });
+    if (animate) changed.forEach(function (k) { var c = $('m-' + k); c.classList.remove('flash'); void c.offsetWidth; c.classList.add('flash'); });
+    syncLabels();
+    return changed;
+  }
+  var STORY = [
+    { preset: '0,0,0', note: 'Every rule off. The original design finds nothing, and nothing is true.' },
+    { preset: '0.10,0,0', note: 'Friendly clerks bring customers back. The design still sees nothing.' },
+    { preset: '0.10,0.25,0', note: 'Busy clerks stop smiling. Friendlier stores now have shorter lines, as published, but the sales coefficient stays near zero.' },
+    { preset: '0.10,0.25,24', note: 'Smiling slows the line. The published \u2212.10 appears. Read the answer below: the true cost is a fraction of that.' }];
+  var pendingStory = false;
+  function runStory() {
+    if (state.busy) { pendingStory = true; $('status').textContent = 'The full model starts as soon as the current run finishes.'; return; }
+    var bar = $('story'); bar.hidden = false;
+    for (var k = 0; k < 4; k++) { $('st' + k).className = 'st'; $('sv' + k).textContent = '\u2013'; }
+    var i = 0;
+    (function step() {
+      var st = STORY[i];
+      applyPreset(st.preset, true);
+      $('st' + i).classList.add('active');
+      $('status').textContent = st.note;
+      var v = st.preset.split(',').map(Number), P = { reinf: v[0], pace: v[1], cost: v[2] };
+      setTimeout(function () {
+        runNow(function (a) {
+          $('sv' + i).textContent = 'β' + ['₀', '₁', '₂', '₃'][i] + ' ' + fmt(a.beta);
+          $('st' + i).classList.remove('active'); $('st' + i).classList.add('done');
+          if (Math.abs(a.beta - PUB.beta) <= TOL) $('st' + i).classList.add('hit');
+          $('status').textContent = st.note;
+          i++;
+          if (i < STORY.length) setTimeout(step, 900);
+          else {
+            $('status').textContent = st.note;
+            setTimeout(function () { document.getElementById('results').scrollIntoView({ behavior: REDUCED ? 'auto' : 'smooth', block: 'start' }); }, 500);
+          }
+        }, P);
+      }, 550);
+    })();
+  }
+
+  /* ---------- count-up ---------- */
+  function countTo(node, text, numeric) {
+    if (REDUCED || !numeric) { node.textContent = text; return; }
+    var target = numeric.value, fmtf = numeric.fmt, start = performance.now(), from = node._v === undefined ? 0 : node._v, dur = 500;
+    node._v = target; node._final = text;
+    var done = false, guard = setTimeout(function () { done = true; node.textContent = text; }, dur + 150);
+    (function step(t) {
+      if (done || node._final !== text) return;
+      var k = Math.min(1, (t - start) / dur); k = 1 - Math.pow(1 - k, 3);
+      node.textContent = fmtf(from + (target - from) * k);
+      if (k < 1) requestAnimationFrame(step); else { done = true; clearTimeout(guard); node.textContent = text; }
+    })(start);
+  }
+
+  /* ---------- the answer the original design could not give ---------- */
+  function answerText(a) {
+    var e = a.effect * 100, sig = Math.abs(a.beta) > 1.96 * a.se;
+    if (Math.abs(a.effect) < 0.005) return 'Friendlier clerks would leave sales practically unchanged. ' + (sig && a.beta < 0 ? 'The design reports a negative effect, but the smile is not the problem.' : 'The smile is not the problem, and here the design does not claim otherwise.');
+    if (a.effect < 0) return 'Friendlier clerks would lower sales by ' + Math.abs(e).toFixed(1) + '%, a few baskets per store over the run. The coefficient of ' + fmt(a.beta) + ' is in standard deviations and makes the cost look far larger than it is.';
+    return 'Friendlier clerks would raise sales by ' + e.toFixed(1) + '%.' + (sig && a.beta < 0 ? ' The original design would have reported the opposite sign.' : sig ? ' Here design and truth agree.' : ' The original design would have missed it.');
+  }
+
+  /* ---------- verdict ---------- */
+  var ICON_OK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12l5 5 9-10"/></svg>';
+  var ICON_BAD = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v9"/><circle cx="12" cy="18" r="1.2" fill="currentColor"/></svg>';
+  var ICON_NONE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><path d="M6 12h12"/></svg>';
+  function verdict(a) {
+    var sig = Math.abs(a.beta) > 1.96 * a.se, e = a.effect, flat = Math.abs(e) < 0.005;
+    var s1 = sig ? 'A researcher using the original design would report that friendlier stores sell ' + (a.beta < 0 ? 'less' : 'more') + ' (coefficient ' + fmt(a.beta) + ').'
+      : 'A researcher using the original design would report no clear relationship between friendliness and sales (coefficient ' + fmt(a.beta) + ', within sampling error of zero).';
+    var s2 = flat ? ' In the model, making clerks friendlier leaves sales practically unchanged.' : ' In the model, making clerks friendlier ' + (e > 0 ? 'raises' : 'lowers') + ' total sales by ' + Math.abs(e * 100).toFixed(1) + '%.';
+    var cls, tag, s3;
+    if (sig && !flat && (a.beta < 0) !== (e < 0)) { cls = 'mislead'; tag = 'The design gets the direction wrong'; s3 = ''; }
+    else if (sig && flat) { cls = 'mislead'; tag = 'The design reports an effect that does not exist'; s3 = ''; }
+    else if (!sig && !flat) { cls = 'mislead'; tag = 'The design misses an effect that exists'; s3 = ''; }
+    else if (sig) { cls = 'agree'; tag = 'Design and truth agree in direction'; s3 = ' Note the size: the coefficient is in standard deviations of sales, the true effect is a share of total sales.'; }
+    else { cls = 'none'; tag = 'Nothing is going on, and the design says so'; s3 = ''; }
+    return { cls: cls, tag: tag, text: s1 + s2 + s3 };
+  }
+
+  /* ---------- target bars ---------- */
+  function targets(a) {
+    var box = $('targets'); box.textContent = '';
+    var rows = [
+      ['Effect of friendliness on sales', 'regression beta', a.beta, PUB.beta],
+      ['Friendliness and sales', 'correlation', a.rDS, PUB.rDS],
+      ['Friendliness and line length', 'correlation', a.rDL, PUB.rDL],
+      ['Line length and sales', 'correlation', a.rLS, PUB.rLS]];
+    var W = 600, H = 34, m = 56, span = 0.5;
+    var X = function (v) { return m + (v + span) / (2 * span) * (W - 2 * m); };
+    rows.forEach(function (r) {
+      var row = h('div', 'tb'), lbl = h('div', 'lbl', r[0]); lbl.appendChild(h('small', null, r[1])); row.appendChild(lbl);
+      var svg = el('svg', { viewBox: '0 0 ' + W + ' ' + H, preserveAspectRatio: 'none' });
+      svg.appendChild(el('line', { x1: m, x2: W - m, y1: 17, y2: 17, stroke: 'var(--grid)', 'stroke-width': 8, 'stroke-linecap': 'round' }));
+      var sim = Math.max(-span, Math.min(span, r[2])), pub = r[3];
+      svg.appendChild(el('rect', { x: Math.min(X(0), X(sim)), y: 13, width: Math.abs(X(sim) - X(0)), height: 8, rx: 4, 'class': 'bar-sim' }));
+      svg.appendChild(el('line', { x1: X(0), x2: X(0), y1: 6, y2: 28, 'class': 'zero' }));
+      svg.appendChild(el('line', { x1: X(pub), x2: X(pub), y1: 4, y2: 30, 'class': 'pub' }));
+      var hit = Math.abs(r[2] - pub) <= TOL;
+      svg.appendChild(el('circle', { cx: W - m + 18, cy: 17, r: 5, 'class': hit ? 'hit' : 'miss' }));
+      svg.appendChild(el('text', { x: 4, y: 21, 'class': 'cap' }, signed(r[2])));
+      svg.appendChild(el('text', { x: X(pub), y: H + 10, 'text-anchor': 'middle' }, 'pub. ' + signed(pub)));
+      var t = el('title', {}, r[0] + ': simulated ' + signed(r[2]) + ', published ' + signed(pub)); svg.appendChild(t);
+      row.appendChild(svg); box.appendChild(row);
+    });
+  }
+
+  /* ---------- render results ---------- */
+  function renderResult() {
+    var a = state.result; if (!a) return;
+    countTo($('t-beta'), fmt(a.beta), { value: a.beta, fmt: fmt });
+    countTo($('t-dl'), fmt(a.rDL), { value: a.rDL, fmt: fmt });
+    countTo($('t-ls'), signed(a.rLS), { value: a.rLS, fmt: signed });
+    countTo($('t-eff'), pct(a.effect), { value: a.effect, fmt: pct });
+    countTo($('hero-truth'), pct(a.effect), { value: a.effect, fmt: pct });
+    countTo($('a-beta'), fmt(a.beta), { value: a.beta, fmt: fmt });
+    countTo($('a-eff'), pct(a.effect), { value: a.effect, fmt: pct });
+    $('a-text').textContent = answerText(a);
+    var v = verdict(a);
+    var vb = $('verdict'); vb.className = 'verdict ' + v.cls; $('verdict-tag').textContent = v.tag; $('verdict-text').textContent = v.text;
+    $('verdict-icon').innerHTML = v.cls === 'agree' ? ICON_OK : v.cls === 'mislead' ? ICON_BAD : ICON_NONE;
+    targets(a); drawScatter();
+  }
+
+  /* ---------- scatter ---------- */
+  var sc = {};
+  function drawScatter() {
+    var a = state.result; if (!a) return;
+    var svg = $('scatter'), W = Math.max(320, $('scatter-wrap').clientWidth), H = Math.round(Math.min(440, Math.max(280, W * 0.5)));
+    var m = { l: 48, r: 16, t: 16, b: 44 };
+    svg.setAttribute('viewBox', '0 0 ' + W + ' ' + H); svg.textContent = '';
+    var zs = a.stores.map(function (s) { return s.z; });
+    var y0 = Math.floor(Math.min.apply(null, zs)), y1 = Math.ceil(Math.max.apply(null, zs));
+    var X = function (v) { return m.l + v * (W - m.l - m.r); };
+    var Y = function (v) { return m.t + (y1 - v) / (y1 - y0) * (H - m.t - m.b); };
+    var i;
+    for (i = y0; i <= y1; i++) {
+      svg.appendChild(el('line', { x1: m.l, x2: W - m.r, y1: Y(i), y2: Y(i), stroke: i === 0 ? 'var(--axis)' : 'var(--grid)', 'stroke-width': 1 }));
+      svg.appendChild(el('text', { x: m.l - 8, y: Y(i) + 4, 'text-anchor': 'end' }, (i > 0 ? '+' : i < 0 ? '−' : '') + Math.abs(i)));
+    }
+    for (i = 0; i <= 4; i++) svg.appendChild(el('text', { x: X(i / 4), y: H - m.b + 18, 'text-anchor': 'middle' }, (i * 25) + '%'));
+    svg.appendChild(el('line', { x1: m.l, x2: W - m.r, y1: H - m.b, y2: H - m.b, stroke: 'var(--axis)', 'stroke-width': 1 }));
+    svg.appendChild(el('text', { x: (m.l + W - m.r) / 2, y: H - 6, 'text-anchor': 'middle', 'class': 't' }, 'Observed friendliness: share of coded transactions with a smile'));
+    svg.appendChild(el('text', { x: m.l, y: m.t - 4, 'class': 't' }, 'Sales, in standard deviations from the mean'));
+    var g = el('g', { fill: 'var(--series)', 'fill-opacity': 0.5 });
+    a.stores.forEach(function (s) { g.appendChild(el('circle', { cx: X(s.display).toFixed(1), cy: Y(s.z).toFixed(1), r: 3.2 })); });
+    svg.appendChild(g);
+    var slope = a.rDS / a.display.sd, f = function (x) { return slope * (x - a.display.mean); };
+    svg.appendChild(el('line', { x1: X(0), y1: Y(f(0)), x2: X(1), y2: Y(f(1)), stroke: 'var(--ink)', 'stroke-width': 2 }));
+    svg.appendChild(el('text', { x: X(1) - 4, y: Y(f(1)) - 8, 'text-anchor': 'end', 'class': 'l' }, 'Fitted line, r = ' + fmt(a.rDS)));
+    var ring = el('circle', { r: 6.5, fill: 'none', stroke: 'var(--ink)', 'stroke-width': 2, visibility: 'hidden' });
+    svg.appendChild(ring);
+    sc = { X: X, Y: Y, W: W, H: H, ring: ring };
+  }
+  function scatterHover(ev) {
+    var a = state.result; if (!a || !sc.X) return;
+    var svg = $('scatter'), box = svg.getBoundingClientRect(), k = sc.W / box.width;
+    var px = (ev.clientX - box.left) * k, py = (ev.clientY - box.top) * k, best = null, bd = 400;
+    a.stores.forEach(function (s) { var dx = sc.X(s.display) - px, dy = sc.Y(s.z) - py, d = dx * dx + dy * dy; if (d < bd) { bd = d; best = s; } });
+    var tip = $('tip');
+    if (!best) { tip.hidden = true; sc.ring.setAttribute('visibility', 'hidden'); return; }
+    sc.ring.setAttribute('cx', sc.X(best.display)); sc.ring.setAttribute('cy', sc.Y(best.z)); sc.ring.setAttribute('visibility', 'visible');
+    tip.textContent = '';
+    ['Store ' + best.id, 'Friendliness ' + Math.round(best.display * 100) + '% (' + best.coded + ' transactions coded)',
+      'Line length ' + best.line.toFixed(1), 'Sales ' + signed(best.z) + ' SD', 'New customers per hour ' + best.traffic.toFixed(0)]
+      .forEach(function (t, i) { var d = document.createElement('div'); d.textContent = t; if (!i) d.style.fontWeight = '700'; tip.appendChild(d); });
+    tip.hidden = false;
+    var wrap = $('scatter-wrap').getBoundingClientRect();
+    var tx = ev.clientX - wrap.left + 14, ty = ev.clientY - wrap.top + 14;
+    if (tx + tip.offsetWidth > wrap.width) tx = Math.max(0, ev.clientX - wrap.left - tip.offsetWidth - 14);
+    tip.style.left = tx + 'px'; tip.style.top = ty + 'px';
+  }
+
+  /* ---------- compare presets ---------- */
+  function drawCompare() {
+    var rows = state.cmp || [];
+    [['cmp-beta', 'beta', PUB.beta, -0.2, 0.12], ['cmp-dl', 'rDL', PUB.rDL, -0.3, 0.3]].forEach(function (spec) {
+      var svg = $(spec[0]), key = spec[1], pub = spec[2], lo = spec[3], hi = spec[4];
+      var W = Math.max(300, $(spec[0] + '-wrap').clientWidth), H = 28 * 5 + 50, m = { l: 150, r: 16, t: 26, b: 28 };
+      svg.setAttribute('viewBox', '0 0 ' + W + ' ' + H); svg.textContent = '';
+      var X = function (v) { return m.l + (v - lo) / (hi - lo) * (W - m.l - m.r); };
+      var ticks = []; for (var v = Math.ceil(lo * 10) / 10; v <= hi + 1e-9; v += 0.1) ticks.push(Math.round(v * 10) / 10);
+      ticks.forEach(function (v) {
+        svg.appendChild(el('line', { x1: X(v), x2: X(v), y1: m.t, y2: H - m.b, stroke: Math.abs(v) < 1e-9 ? 'var(--axis)' : 'var(--grid)', 'stroke-width': 1 }));
+        svg.appendChild(el('text', { x: X(v), y: H - m.b + 16, 'text-anchor': 'middle' }, Math.abs(v) < 1e-9 ? '0' : fmt(v, 1)));
+      });
+      svg.appendChild(el('line', { x1: X(pub), x2: X(pub), y1: m.t - 6, y2: H - m.b, stroke: 'var(--ink)', 'stroke-width': 2, 'stroke-dasharray': '5 4' }));
+      svg.appendChild(el('text', { x: X(pub), y: m.t - 10, 'text-anchor': 'middle', 'class': 'l' }, 'Published ' + fmt(pub)));
+      PRESETS.forEach(function (p, i) {
+        var y = m.t + 14 + i * 28;
+        svg.appendChild(el('text', { x: m.l - 10, y: y + 4, 'text-anchor': 'end', 'class': 'rl' }, p.name));
+        var r = rows[i];
+        if (r) {
+          var hit = Math.abs(r[key] - pub) <= TOL;
+          var c = el('circle', { cx: X(Math.max(lo, Math.min(hi, r[key]))), cy: y, r: 7, fill: hit ? 'var(--series)' : 'var(--series-off)', stroke: 'var(--surface)', 'stroke-width': 2 });
+          c.appendChild(el('title', {}, p.name + ': ' + fmt(r[key]) + (hit ? ' (matches)' : '')));
+          svg.appendChild(c);
+          svg.appendChild(el('text', { x: X(Math.max(lo, Math.min(hi, r[key]))) + 11, y: y + 4, 'class': 'l' }, fmt(r[key])));
+        } else {
+          svg.appendChild(el('line', { x1: m.l, x2: W - m.r, y1: y, y2: y, stroke: 'var(--grid)', 'stroke-width': 1, 'stroke-dasharray': '2 4' }));
+        }
+      });
+    });
+  }
+  function runCompare() {
+    if (state.busy) return;
+    var seed = +$('seed').value || 1, i = 0; state.cmp = []; drawCompare();
+    setBusy(true, 'Comparing presets'); $('cmp-status').textContent = 'Running preset 1 of 5';
+    (function next() {
+      if (i >= PRESETS.length) {
+        var both = state.cmp.map(function (r) { return Math.abs(r.beta - PUB.beta) <= TOL && Math.abs(r.rDL - PUB.rDL) <= TOL; });
+        var names = PRESETS.filter(function (p, k) { return both[k]; }).map(function (p) { return p.name; });
+        $('cmp-status').textContent = names.length ? 'Both numbers match for: ' + names.join(', ') + '. Seed ' + seed + '.' : 'No preset matches both numbers with seed ' + seed + '. Try another seed or adjust the strengths.';
+        setBusy(false); setProgress(1); return;
+      }
+      var p = PRESETS[i];
+      runAsync({ reinf: p.p[0], pace: p.p[1], cost: p.p[2] }, seed, false, function (a) {
+        state.cmp.push({ beta: a.beta, rDL: a.rDL }); i++; setProgress(i / PRESETS.length);
+        $('cmp-status').textContent = i < PRESETS.length ? 'Running preset ' + (i + 1) + ' of 5' : 'Done';
+        drawCompare(); next();
+      });
+    })();
+  }
+
+  /* ---------- replications strip ---------- */
+  function drawStrip() {
+    var svg = $('strip'), W = Math.max(300, $('strip-wrap').clientWidth), H = 180, m = { l: 14, r: 14, t: 32, b: 34 };
+    svg.setAttribute('viewBox', '0 0 ' + W + ' ' + H); svg.textContent = '';
+    var reps = state.reps, mx = 0.3;
+    reps.forEach(function (r) { mx = Math.max(mx, Math.abs(r.beta) + 0.05); });
+    mx = Math.ceil(mx * 10) / 10;
+    var X = function (v) { return m.l + (v + mx) / (2 * mx) * (W - m.l - m.r); }, base = H - m.b;
+    svg.appendChild(el('line', { x1: m.l, x2: W - m.r, y1: base, y2: base, stroke: 'var(--axis)', 'stroke-width': 1 }));
+    var stepT = W < 520 ? 0.2 : 0.1;
+    for (var v = -mx; v <= mx + 1e-9; v += stepT) svg.appendChild(el('text', { x: X(v), y: base + 18, 'text-anchor': 'middle' }, Math.abs(v) < 1e-9 ? '0' : fmt(v, 1)));
+    svg.appendChild(el('line', { x1: X(0), x2: X(0), y1: m.t, y2: base, stroke: 'var(--axis)', 'stroke-width': 1 }));
+    svg.appendChild(el('line', { x1: X(-0.1), x2: X(-0.1), y1: m.t, y2: base, stroke: 'var(--ink)', 'stroke-width': 2, 'stroke-dasharray': '5 4' }));
+    svg.appendChild(el('text', { x: X(-0.1) - 6, y: m.t - 10, 'text-anchor': 'end', 'class': 'l' }, 'Published −.10'));
+    svg.appendChild(el('text', { x: X(0) + 6, y: m.t - 10, 'class': 't' }, 'No relationship'));
+    var bins = {}, tip = $('tip2');
+    reps.forEach(function (r, idx) {
+      var b = Math.round(X(r.beta) / 14), n = bins[b] = (bins[b] || 0) + 1;
+      var c = el('circle', { cx: b * 14, cy: base - 9 - (n - 1) * 15, r: 6, fill: 'var(--series)', stroke: 'var(--surface)', 'stroke-width': 2, tabindex: 0 });
+      if (!REDUCED && idx === reps.length - 1) { c.style.transformOrigin = (b * 14) + 'px ' + (base - 9 - (n - 1) * 15) + 'px'; c.animate([{ transform: 'scale(0)' }, { transform: 'scale(1)' }], { duration: 220, easing: 'ease-out' }); }
+      var show = function () {
+        tip.textContent = 'Seed ' + r.seed + ': beta ' + fmt(r.beta) + ', friendliness and line ' + fmt(r.rDL) + ', line and sales ' + signed(r.rLS);
+        tip.hidden = false;
+        var x = Math.min(b * 14 * ($('strip').getBoundingClientRect().width / W) + 10, $('strip-wrap').clientWidth - tip.offsetWidth);
+        tip.style.left = Math.max(0, x) + 'px'; tip.style.top = '4px';
+      };
+      c.addEventListener('mouseenter', show); c.addEventListener('focus', show);
+      c.addEventListener('mouseleave', function () { tip.hidden = true; }); c.addEventListener('blur', function () { tip.hidden = true; });
+      svg.appendChild(c);
+    });
+  }
+  function runReps() {
+    if (state.busy) return;
+    var p = params(), seed0 = +$('seed').value || 1, N = 20, i = 0;
+    state.reps = []; drawStrip(); setBusy(true, 'Rerunning'); $('rep-badge').className = 'badge'; $('rep-badge').textContent = 'Running';
+    (function next() {
+      if (i >= N) {
+        var neg = state.reps.filter(function (r) { return r.beta < 0; }).length;
+        var mean = state.reps.reduce(function (s, r) { return s + r.beta; }, 0) / N;
+        var vr, cls;
+        if (neg === N) { vr = 'Every rerun points the same way: the negative result is systematic for these settings.'; cls = 'good'; }
+        else if (neg === 0) { vr = 'No rerun is negative: these settings cannot produce the published finding.'; cls = 'bad'; }
+        else if (neg >= N - 2 || neg <= 2) { vr = 'Nearly all reruns agree, so the sign is reliable for these settings.'; cls = 'good'; }
+        else { vr = 'The reruns disagree in sign, so a single run cannot be trusted for these settings.'; cls = 'warn'; }
+        $('rep-status').textContent = neg + ' of ' + N + ' reruns give a negative coefficient (mean ' + fmt(mean) + '). ' + vr;
+        $('rep-badge').className = 'badge ' + cls; $('rep-badge').textContent = neg + ' of ' + N + ' negative';
+        $('rep-bar').style.width = '100%'; setBusy(false); setProgress(1); return;
+      }
+      $('rep-status').textContent = 'Run ' + (i + 1) + ' of ' + N; $('rep-bar').style.width = (i / N * 100) + '%';
+      runAsync(p, seed0 + 1 + i, false, function (a) {
+        state.reps.push({ seed: seed0 + 1 + i, beta: a.beta, rDL: a.rDL, rLS: a.rLS });
+        drawStrip(); i++; setProgress(i / N); next();
+      });
+    })();
+  }
+
+  /* ---------- main run ---------- */
+  var runToken = 0;
+  function runNow(cb, P) {
+    syncLabels();
+    var token = ++runToken, p = P || params(), seed = +$('seed').value || 1, t0 = Date.now();
+    $('status').textContent = 'Simulating 576 stores…'; setBusy(true); setProgress(0.3);
+    runAsync(p, seed, true, function (a) {
+      if (token !== runToken) return;
+      state.result = a; renderResult();
+      $('status').textContent = 'Done in ' + ((Date.now() - t0) / 1000).toFixed(1) + ' s. Seed ' + seed + ', ' + F.hours + ' opening hours per store.';
+      setBusy(false); setProgress(1);
+      state.reps = []; drawStrip(); $('rep-status').textContent = 'Not run yet for these settings.'; $('rep-bar').style.width = '0'; $('rep-badge').className = 'badge'; $('rep-badge').textContent = 'Not run yet';
+      resetLive();
+      if (typeof cb === 'function') cb(a);
+      if (pendingStory) { pendingStory = false; runStory(); }
+    });
+  }
+
+  /* ---------- live store ---------- */
+  var live = { playing: false, raf: 0, last: 0, speed: 1, lam: 40, events: [] };
+  var LT = 200 * SIM.TPH;
+  function resetLive() {
+    var P = params(), lam = live.lam;
+    live.P = P; live.rA = SIM.rng32(11); live.rB = SIM.rng32(29); live.t = 0; live.events = [];
+    live.st = SIM.newStore(P, live.rA, LT, lam); live.st.norm = F.normMean;
+    live.expL = Math.exp(-lam / SIM.TPH);
+    for (var i = 0; i < 540; i++) liveStep(true);
+    drawLive();
+  }
+  function liveStep(silent) {
+    SIM.step(live.st, live.t % LT, LT, live.expL, live.P, live.rA, live.rB, true); live.t++;
+    if (!silent && live.st.evBalk) live.events.push({ t: performance.now(), n: live.st.evBalk });
+  }
+  function css(n) { return getComputedStyle(document.documentElement).getPropertyValue(n).trim(); }
+  function face(ctx, x, y, r, smile, fill, ink) {
+    ctx.beginPath(); ctx.arc(x, y, r, 0, 2 * Math.PI); ctx.fillStyle = fill; ctx.fill();
+    ctx.fillStyle = ink; ctx.beginPath(); ctx.arc(x - r * 0.35, y - r * 0.2, r * 0.1, 0, 2 * Math.PI); ctx.arc(x + r * 0.35, y - r * 0.2, r * 0.1, 0, 2 * Math.PI); ctx.fill();
+    ctx.strokeStyle = ink; ctx.lineWidth = 2; ctx.beginPath();
+    if (smile) ctx.arc(x, y + r * 0.1, r * 0.5, 0.15 * Math.PI, 0.85 * Math.PI);
+    else { ctx.moveTo(x - r * 0.4, y + r * 0.4); ctx.lineTo(x + r * 0.4, y + r * 0.4); }
+    ctx.stroke();
+  }
+  function person(ctx, x, y, r, fill, alpha) {
+    ctx.globalAlpha = alpha; ctx.fillStyle = fill;
+    ctx.beginPath(); ctx.arc(x, y - r * 0.9, r * 0.75, 0, 2 * Math.PI); ctx.fill();
+    ctx.beginPath(); ctx.roundRect ? ctx.roundRect(x - r * 0.75, y, r * 1.5, r * 1.9, r * 0.5) : ctx.rect(x - r * 0.75, y, r * 1.5, r * 1.9); ctx.fill();
+    ctx.globalAlpha = 1;
+  }
+  function drawLive() {
+    var c = $('live-canvas'), dpr = window.devicePixelRatio || 1, w = c.clientWidth, hh = c.clientHeight;
+    if (c.width !== Math.round(w * dpr)) { c.width = Math.round(w * dpr); c.height = Math.round(hh * dpr); }
+    var ctx = c.getContext('2d'); ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, w, hh);
+    var ink = css('--ink'), ink2 = css('--ink-2'), series = css('--series'), accent = css('--accent'), accentInk = css('--accent-ink'), surface = css('--surface'), axis = css('--axis'), rule = css('--rule'), bad = css('--bad'), muted = css('--muted');
+    var st = live.st, cy = hh / 2 + 26;
+    // shelves backdrop
+    ctx.strokeStyle = rule; ctx.lineWidth = 2;
+    for (var sh = 0; sh < 3; sh++) { var sy = 40 + sh * 26; ctx.beginPath(); ctx.moveTo(w - 30, sy); ctx.lineTo(w - 190, sy); ctx.stroke(); for (var k = 0; k < 5; k++) { ctx.fillStyle = (k % 2 ? axis : rule); ctx.fillRect(w - 182 + k * 30, sy - 12 - (k % 3) * 2, 16, 12 + (k % 3) * 2); } }
+    // counter
+    ctx.fillStyle = surface; ctx.fillRect(70, cy - 44, 24, 90); ctx.fillStyle = accent; ctx.fillRect(70, cy - 44, 24, 6);
+    ctx.font = '700 13px ' + css('--body'); ctx.textBaseline = 'alphabetic';
+    var disp = st.busy && st.curDisp;
+    face(ctx, 40, cy - 4, 22, disp, disp ? accent : axis, disp ? accentInk : ink);
+    ctx.fillStyle = muted; ctx.font = '12px ' + css('--body'); ctx.fillText('Clerk', 25, cy + 40);
+    ctx.font = '700 14px ' + css('--body'); ctx.fillStyle = disp ? accent : ink2;
+    ctx.fillText(st.busy ? (disp ? 'Greets, smiles, thanks' : 'Serves without a smile') : 'Waiting for customers', 16, 26);
+    var x = 128, gap = Math.min(42, (w - 240) / 9);
+    if (st.busy) person(ctx, x, cy - 6, 14, series, 1);
+    for (var i = 0; i < Math.min(st.waiting, 9); i++) person(ctx, x + (i + 1) * gap, cy - 6, 14, series, 0.45);
+    if (st.waiting > 9) { ctx.fillStyle = ink2; ctx.font = '700 13px ' + css('--body'); ctx.fillText('+' + (st.waiting - 9), x + 10 * gap, cy); }
+    ctx.fillStyle = ink2; ctx.font = '13px ' + css('--body');
+    ctx.fillText(st.waiting + (st.waiting === 1 ? ' customer waiting' : ' customers waiting'), x - 14, cy + 40);
+    // walk-outs fade out at the right edge
+    var now = performance.now();
+    live.events = live.events.filter(function (e) { return now - e.t < 1400; });
+    live.events.forEach(function (e) { var k = (now - e.t) / 1400; person(ctx, w - 60 + k * 40, cy - 6 - k * 30, 14, bad, 1 - k); });
+    if (live.events.length) { ctx.fillStyle = bad; ctx.font = '700 13px ' + css('--body'); ctx.textAlign = 'right'; ctx.fillText('Leaves: line too long', w - 14, 26); ctx.textAlign = 'left'; }
+    $('l-served').textContent = st.served;
+    $('l-share').textContent = st.served ? Math.round(st.shown / st.served * 100) + '%' : '0%';
+    $('l-balk').textContent = st.balked;
+    $('l-time').textContent = (live.t / SIM.TPH).toFixed(1) + ' h';
+  }
+  function frame(ts) {
+    if (!live.playing) return;
+    if (ts - live.last > 55 / live.speed) { live.last = ts; liveStep(false); }
+    drawLive();
+    live.raf = requestAnimationFrame(frame);
+  }
+
+  /* ---------- share link ---------- */
+  var PAGE_URL = 'https://bluetenhonig.github.io/convenience-store-simulation/';
+  $('copy-link').addEventListener('click', function () {
+    var btn = $('copy-link'), done = function () { btn.textContent = 'Copied'; btn.classList.add('done'); setTimeout(function () { btn.textContent = 'Copy link'; btn.classList.remove('done'); }, 1800); };
+    var fallback = function () {
+      var r = document.createRange(); r.selectNodeContents($('share-url')); var sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(r);
+      try { if (document.execCommand('copy')) { done(); return; } } catch (e) {}
+      btn.textContent = 'Select and copy the link';
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(PAGE_URL).then(done, fallback); else fallback();
+  });
+
+  /* ---------- wiring ---------- */
+  ['reinf', 'pace', 'cost'].forEach(function (id) {
+    $(id).addEventListener('input', syncLabels);
+    $(id).addEventListener('change', runNow);
+    $('sw-' + id).addEventListener('click', function () { mech[id].on = !mech[id].on; if (mech[id].on && +$(id).value === 0) animateSlider(id, DEFAULTS[id], 450); runNow(); });
+  });
+  document.querySelectorAll('[data-preset]').forEach(function (b) {
+    b.addEventListener('click', function () {
+      applyPreset(b.dataset.preset, true);
+      if (b.dataset.jump) document.getElementById(b.dataset.jump).scrollIntoView({ behavior: REDUCED ? 'auto' : 'smooth', block: 'start' });
+      runNow();
+    });
+  });
+  document.querySelectorAll('[data-story]').forEach(function (b) {
+    b.addEventListener('click', function () {
+      if (b.dataset.jump) document.getElementById(b.dataset.jump).scrollIntoView({ behavior: REDUCED ? 'auto' : 'smooth', block: 'start' });
+      runStory();
+    });
+  });
+  document.querySelectorAll('[data-compare]').forEach(function (b) {
+    b.addEventListener('click', function () { document.getElementById('compare').scrollIntoView({ behavior: REDUCED ? 'auto' : 'smooth', block: 'start' }); runCompare(); });
+  });
+  $('run').addEventListener('click', runNow);
+  $('seed').addEventListener('change', runNow);
+  $('reseed').addEventListener('click', function () { $('seed').value = 1 + Math.floor(Math.random() * 99998); runNow(); });
+  $('rep').addEventListener('click', runReps);
+  $('cmp-run').addEventListener('click', runCompare);
+  $('scatter').addEventListener('mousemove', scatterHover);
+  $('scatter').addEventListener('mouseleave', function () { $('tip').hidden = true; if (sc.ring) sc.ring.setAttribute('visibility', 'hidden'); });
+  $('play').addEventListener('click', function () {
+    live.playing = !live.playing; $('play').textContent = live.playing ? 'Pause' : 'Play';
+    if (live.playing) { live.last = 0; live.raf = requestAnimationFrame(frame); }
+  });
+  $('traffic').querySelectorAll('button').forEach(function (b) {
+    b.addEventListener('click', function () { $('traffic').querySelectorAll('button').forEach(function (o) { o.setAttribute('aria-pressed', o === b ? 'true' : 'false'); }); live.lam = +b.dataset.lam; resetLive(); });
+  });
+  $('speed').querySelectorAll('button').forEach(function (b) {
+    b.addEventListener('click', function () { $('speed').querySelectorAll('button').forEach(function (o) { o.setAttribute('aria-pressed', o === b ? 'true' : 'false'); }); live.speed = +b.dataset.speed; });
+  });
+  var rz; window.addEventListener('resize', function () { clearTimeout(rz); rz = setTimeout(function () { drawScatter(); drawStrip(); drawCompare(); drawLive(); }, 150); });
+  // section highlight in the nav
+  if ('IntersectionObserver' in window) {
+    var links = {}; document.querySelectorAll('#navlinks a').forEach(function (a) { links[a.getAttribute('href').slice(1)] = a; });
+    var io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (en) { if (en.isIntersecting) { Object.keys(links).forEach(function (k) { links[k].classList.toggle('active', k === en.target.id); }); } });
+    }, { rootMargin: '-40% 0px -55% 0px' });
+    Object.keys(links).forEach(function (k) { var s = document.getElementById(k); if (s) io.observe(s); });
+  }
+  $('p-norm').textContent = 'mean ' + F.normMean.toFixed(2) + ', SD ' + F.normSd.toFixed(2);
+  $('p-lam').textContent = String(F.lamMedian);
+  $('p-sig').textContent = 'log SD ' + F.lamSigma + ' and ' + F.hourSigma;
+  $('p-svc').textContent = F.baseService + ' s';
+  $('p-ret').textContent = Math.round(F.returnBase * 100) + '%';
+  $('p-tol').textContent = String(F.tolerance);
+  $('p-bas').textContent = 'log SD ' + F.basketSigma;
+  $('p-hrs').textContent = F.hours + ' h';
+  $('live-label').textContent = 'About 3 simulated minutes per second at 1×.';
+  syncLabels(); drawStrip(); drawCompare(); resetLive(); runNow();
+})();
+</script>
+</body>
+</html>
